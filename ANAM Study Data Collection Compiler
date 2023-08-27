@@ -1,0 +1,230 @@
+Private TestIden As String
+Private ModelNum As String
+Private strSuffix1 As String
+Private strSuffix2 As String
+Private FSO As New FileSystemObject
+Private objectFileSys As Object
+Private objectGetFolder As Object
+Private file As Object
+Private msrowsnumber As Integer
+Private msrowsnumberFinal As Integer
+Private StringArray() As String, Cell As Range, i As Integer
+Private Const strOrigSOURCE As String = "[EnterPath]"
+Private Const strProcSOURCE As String = "[EnterPath]"
+Private Const strFinalSOURCE As String = "[EnterPath]"
+
+Sub ExtractModel200Data()
+
+    Dim vbAnswer As String
+    On Error GoTo HandleError:
+    Application.ScreenUpdating = False
+
+    If WorksheetFunction.CountA(ActiveSheet.UsedRange) = 0 Then
+        Call Headers
+    End If
+
+    Call TestID
+
+    Call CheckSubFiles
+    If CheckSubFiles = True Then
+        Call RemoveSubFiles
+    End If
+
+    If CheckRTLFiles = True Then
+        Call RemoveRTLFiles
+    End If
+
+    Do
+        Call NoTestID
+        If NoTestID = True Then
+            VBA.Interaction.MsgBox Prompt:="File not found. Cannot Continue."
+        Else
+            Call FileExists
+            If FileExists = False Then
+                VBA.Interaction.MsgBox Prompt:="File not found. Cannot Continue."
+            Else
+                Call FSOMoveFilesIn
+                Call Processing
+                Call SplitData
+                Call FSOMoveFilesOut
+            End If
+            vbAnswer = VBA.Interaction.MsgBox(Prompt:="Would you like to run another Test ID?", _
+                                              Buttons:=vbYesNo)
+            If vbAnswer = vbNo Then
+                GoTo HandleError
+            Else
+                Call TestID
+            End If
+        End If
+    Loop
+
+HandleError:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+End Sub
+
+Private Sub Headers()
+
+Cells(1, 1) = "Participant ID"
+Cells(1, 2) = "ID"
+Cells(1, 3) = "RunTestID"
+Cells(1, 4) = "SessionID"
+Cells(1, 5) = "SessionRunID"
+Cells(1, 6) = "Patient ID"
+Cells(1, 7) = "TestID"
+Cells(1, 8) = "DateCreated"
+Cells(1, 9) = "ProviderID"
+Cells(1, 10) = "ReactionTimeMs"
+Cells(1, 11) = "Result"
+Cells(1, 12) = "ComputerName"
+Cells(1, 13) = "AppVersion"
+Cells(1, 14) = "Age"
+Cells(1, 15) = "Gender"
+Cells(1, 16) = "TestName"
+Cells(1, 17) = "DominantHand"
+Cells(1, 18) = "AssessmentType"
+Cells(1, 19) = "Adjustment"
+
+End Sub
+
+Private Sub TestID()
+
+    strSuffix1 = vbCr & vbCr & "Ex: R000000000"
+
+    TestIden = InputBox("Enter Test ID: " & strSuffix1)
+
+    If TestIden = vbNullString Then
+        TestIden = "No Input"
+    If TestIden = vbCancel Then
+        Exit Sub
+    End If
+    End If
+
+End Sub
+
+Private Function CheckSubFiles() As Boolean
+
+    If VBA.FileSystem.Dir(strOrigSOURCE & ModelNum & "\" & "*" & ".sub" & "*") = VBA.Constants.vbNullString Then
+        CheckSubFiles = False
+    Else
+        CheckSubFiles = True
+    End If
+
+End Function
+
+Private Sub RemoveSubFiles()
+
+    Set FSO = CreateObject("Scripting.FileSystemObject")
+    FSO.MoveFile strOrigSOURCE & "*" & ".sub" & "*", strFinalSOURCE
+
+End Sub
+
+Private Function CheckRTLFiles() As Boolean
+
+    If VBA.FileSystem.Dir(strOrigSOURCE & "*" & ".rtl" & "*") = VBA.Constants.vbNullString Then
+        CheckRTLFiles = False
+    Else
+        CheckRTLFiles = True
+    End If
+
+End Function
+
+Private Sub RemoveRTLFiles()
+
+    Set FSO = CreateObject("Scripting.FileSystemObject")
+    FSO.MoveFile strOrigSOURCE & "*" & ".rtl" & "*", strFinalSOURCE
+
+End Sub
+
+Private Function NoTestID() As Boolean
+
+    If TestIden = "No Input" Then
+        NoTestID = True
+    Else
+        NoTestID = False
+    End If
+
+End Function
+
+
+Private Function FileExists() As Boolean
+
+    If VBA.FileSystem.Dir(strOrigSOURCE & "*" & TestIden & "*") = VBA.Constants.vbNullString Then
+        FileExists = False
+    Else
+        FileExists = True
+    End If
+
+End Function
+
+Private Sub FSOMoveFilesIn()
+
+    Set FSO = CreateObject("Scripting.FileSystemObject")
+    FSO.MoveFile strOrigSOURCE & "*" & TestIden & "*", strProcSOURCE
+
+End Sub
+
+Private Sub Processing()
+    Dim counter As Integer
+    Dim rows, cols As Integer
+
+    Set objectFileSys = CreateObject("Scripting.FileSystemObject")
+    Set objectGetFolder = objectFileSys.GetFolder(strProcSOURCE) ' The folder location for the source files.
+
+'    If WorksheetFunction.CountA(ActiveSheet.UsedRange) = 0 Then
+        msrowsnumber = ActiveSheet.UsedRange.rows.Count - 1
+'    Else: msrowsnumber = Worksheets(1).UsedRange.rows.Count
+'    End If
+
+    counter = msrowsnumber
+
+    For Each file In objectGetFolder.Files
+        Dim sourceFiles As Workbook
+        Set sourceFiles = Workbooks.Open(file.path, True, True)
+        ' Call SplitData
+        Dim rowsNumber As Integer
+        rowsNumber = sourceFiles.ActiveSheet.UsedRange.rows.Count
+        Dim colsNumber As Integer
+        colsNumber = sourceFiles.ActiveSheet.UsedRange.Columns.Count
+            For rows = 2 To rowsNumber
+                For cols = 1 To colsNumber
+                    Cells(rows + counter, cols + 1) = sourceFiles.ActiveSheet.Cells(rows, cols)
+                    Cells(rows + counter, "A") = ActiveSheet.Name
+                Next cols
+            Next rows
+
+        counter = counter + rows - 2
+        rows = 0
+        sourceFiles.Close False
+        Set sourceFiles = Nothing
+    Next file
+
+    Application.ActiveSheet.Range("A:A").EntireColumn.AutoFit
+
+End Sub
+
+Private Sub SplitData()
+
+'Dim msrowsnumber As Integer
+'Dim counter As Integer
+
+msrowsnumberFinal = ActiveSheet.UsedRange.rows.Count
+
+    For Each Cell In Range("B" & msrowsnumber + 1 & ":B" & msrowsnumberFinal) 'To work on a static range replace Selection via Range object, e.g., Range(“B6:B12”)
+      StringArray = Split(Cell, ",") 'Change the delimiter with a character suits your data
+      For i = 0 To UBound(StringArray)
+        Cell.Offset(0, i) = StringArray(i)
+        Cell.Offset(0, i).EntireColumn.AutoFit 'This is for column width and optional.
+      Next i
+    Next
+
+End Sub
+
+Private Sub FSOMoveFilesOut()
+
+    Set FSO = CreateObject("Scripting.FileSystemObject")
+    FSO.MoveFile strProcSOURCE & "*" & TestIden & "*", strFinalSOURCE
+
+End Sub
+

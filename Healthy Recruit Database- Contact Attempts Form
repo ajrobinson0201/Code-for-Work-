@@ -1,0 +1,625 @@
+Public StudyAttempts As New Scripting.Dictionary
+Public NumberContact As New Scripting.Dictionary
+Public MethodOutcome As New Scripting.Dictionary
+
+Public StudyKey As Variant
+Public AttemptsValue As String
+
+Public NumberKey As Variant
+Public ContactValue As String
+
+Public MethodKey As Variant
+Public OutcomeValue As String
+
+Public ControlClinicalToggle As Boolean
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Contact Attempts                                           '
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Formatting the Form Load and Current            '
+        ' Section 2: Record's Study Contact History                  '
+        ' Section 3: Filtering the Records And Refreshing the Form   '
+        ' Section 4: Formatting the SearchBar                        '
+        ' Section 5: Opening Add StudiesF Form to Specific Record    '
+        '             or Adding Date When Clicking On Cell           '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 1: Formatting the Form Load and Current            '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+
+Private Sub Form_Load()
+
+DoCmd.GoToRecord acDataForm, "Contact Attempts", acLast
+
+Dim rs As DAO.Recordset
+Dim rs1 As DAO.Recordset
+Dim db As DAO.Database
+Dim apptDate As Date
+Dim IncompleteList As String
+
+IncompleteList = ""
+
+Set db = CurrentDb()
+Set rs = db.OpenRecordset("SELECT [Appointment Start], Outcome, [Study ID] FROM StudiesT WHERE Outcome = 'Scheduled'")
+
+If Not (rs.EOF And rs.BOF) Then
+
+    rs.MoveFirst
+    Do While Not rs.EOF
+        
+        Set rs1 = db.OpenRecordset("SELECT [First Name], [Last Name], [Study ID] FROM [Research VolunteersT] WHERE [Study ID] = int('" & rs![Study ID] & "')")
+
+            apptDate = rs![Appointment Start]
+            
+            If DateDiff("h", apptDate, Now()) > 6 Then
+            
+                DaysAgo = DateDiff("d", rs![Appointment Start], Date)
+                
+                If MsgBox(rs1![First Name] & " " & rs1![Last Name] & " (" & rs![Study ID] & ") was scheduled for an appointment " & DaysAgo & " day(s) ago." & _
+                "Would you like to mark Complete in the Outcome Field?", vbYesNo) = vbYes Then
+                    
+                    rs.Edit
+                    rs![Outcome] = "Complete"
+                    rs.Update
+                
+                Else
+                
+                    If IncompleteList = "" Then
+                    
+                        IncompleteList = rs![Study ID]
+                        
+                    Else
+                        
+                        IncompleteList = IncompleteList & ", " & "'" & rs![Study ID] & "'"
+                    
+                    End If
+                    
+                End If
+            
+            End If
+
+    Set rs1 = Nothing
+    
+    rs.MoveNext
+    
+    Loop
+    
+End If
+
+If IncompleteList <> "" Then
+    
+    strFilter = "[Study ID] IN(" & IncompleteList & ") AND [Outcome] = 'Scheduled'"
+    
+    Me.Filter = strFilter
+    Me.FilterOn = True
+    
+End If
+        
+End Sub
+
+Private Sub Form_Current()
+
+    Dim strSQL As String
+    Dim rs As DAO.Recordset
+    
+On Error GoTo ErrorHandler:
+
+If Not IsNull("Date Contacted") Then
+    ' Get the Study value from StudiesT table for the current StudyID
+'    strSQL = "SELECT [Study] FROM StudiesT WHERE Study ID=" & Forms![Research Volunteers ListF]![Study ID]
+    Set rs = CurrentDb.OpenRecordset("SELECT Study, Outcome, Notes, [Date Contacted] FROM StudiesT WHERE [Study ID]=" & Forms![Contact Attempts]![Study ID] & " ORDER BY [Date Contacted] DESC")
+
+    ' Display the Study value in the text box in the footer of the form
+    If Not (rs.EOF And rs.BOF) Then
+    
+        Me.Text432.value = rs![Study] & "/" & rs![Outcome] & " - " & rs![Date Contacted]
+        
+    Else
+    
+        Me.Text432.value = "No Study"
+        
+    End If
+    
+    ' Clean up
+    rs.Close
+    Set rs = Nothing
+    
+End If
+
+ErrorHandler:
+Exit Sub
+End Sub
+
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Record's Study Contact History                  '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+
+Private Sub ContactHistoryBtn_Click()
+
+Call Contact_History
+
+End Sub
+
+Public Function Contact_History()
+Dim rs As Recordset
+Dim rs1 As Recordset
+Set rs = CurrentDb.OpenRecordset("SELECT * FROM StudiesT")
+Dim strFirstName As String
+
+On Error Resume Next
+'If txtNumofTimesContacted.value >= 3 Then
+StudyAttempts.RemoveAll
+NumberContact.RemoveAll
+AttemptsValue = 0
+
+    Do While Not rs.EOF
+    
+        If rs("Study ID") = Study_ID.value Then
+        
+            If Not rs("Study") = "" Then
+            
+                StudyKey = rs("Study")
+                If Not StudyAttempts.Exists(StudyKey) Then
+                
+                    StudyAttempts.Add StudyKey, 1
+                    
+                Else:
+                
+                    AttemptsValue = StudyAttempts(StudyKey)
+                    StudyAttempts(StudyKey) = AttemptsValue + 1
+                    
+                End If
+                
+            End If
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+   
+    Dim message As String
+    Dim Pronoun As String
+    
+    Set rs1 = CurrentDb.OpenRecordset("SELECT [Gender] FROM [Research VolunteersT]")
+    
+    
+    If rs1![Gender] = "M" Or rs1![Gender] = "m" Then
+    
+        Pronoun = "He"
+        
+    ElseIf rs1![Gender] = "F" Or rs1![Gender] = "f" Then
+    
+        Pronoun = "She"
+        
+    Else:
+    
+        Pronoun = txtFirstName.value
+        
+    End If
+    
+    Set rs1 = Nothing
+
+' loop through each study and print the attempts
+    For Each StudyKey In StudyAttempts.Keys()
+    
+        ' print the study name and total attempts
+        message = message & vbNewLine & txtFirstName & " has been contacted " & StudyAttempts.Item(StudyKey) & " time(s) for " & StudyKey & "."
+    
+        If rs Is Nothing Then
+        
+    '        Dim rs As DAO.Recordset
+            Set rs = CurrentDb.OpenRecordset("StudiesT")
+            
+        End If
+        
+            ' find the last attempt data for this study
+            rs.FindLast "([Study ID] = " & Study_ID.value & ") AND ([Study] = '" & StudyKey & "')"
+            
+            If Not rs.NoMatch Then
+            
+                ' get the attempt data
+                Dim attemptDate As String
+                Dim attemptMethod As String
+                Dim attemptOutcome As String
+               
+                attemptDate = Format(rs("Date Contacted"), "mm/dd/yyyy")
+                If rs("Communication Method") <> "" Then
+                    attemptMethod = " via " & rs("Communication Method")
+                Else:
+                    attemptMethod = rs("Communication Method")
+                End If
+                attemptOutcome = rs("Outcome")
+               
+                ' print the attempt details
+                message = message & vbNewLine & Pronoun & " was last contacted for " & StudyKey & " on " & attemptDate & attemptMethod & " resulting in " & attemptOutcome & "." & vbNewLine
+            
+            End If
+    
+    Next StudyKey
+    
+    If Not message = "" Then
+    
+        MsgBox message, , txtFirstName.value & " " & Last_Name.value & " Contact History"
+        
+    Else:
+    
+        MsgBox txtFirstName.value & " has not been contacted for a study yet.", , txtFirstName.value & " has not been contacted for a study yet."
+    
+    End If
+    
+ End Function
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 3: Filtering the Records And Refreshing the Form   '
+        '                                                            '
+        '------------------------------------------------------------'
+
+Private Sub BtnRefreshForm_Click()
+
+Me.Form.Requery
+
+End Sub
+
+Private Sub Combo447_AfterUpdate()
+
+Call FormFilter
+
+End Sub
+
+Private Sub Combo440_AfterUpdate()
+
+Call FormFilter
+
+End Sub
+
+Private Function FormFilter()
+
+    Dim strWhere As String
+    Dim strGender As String
+    Dim strAge As String
+    Dim strSCon As String
+    Dim strSCli As String
+    Dim strRFL As String
+
+On Error GoTo ErrorHandler:
+
+    'Check if gender has been selected
+    If Me.Combo440 <> "" Then
+        strGender = "Gender = '" & Me.Combo440 & "'"
+    End If
+
+    'Check if age has been selected
+    If Me.Combo447 <> "" Then
+        strAge = "Age = " & Me.Combo447
+    End If
+    
+
+    'Combine the criteria with "AND"
+    If strGender <> "" Then
+        If strWhere = "" Then
+            strWhere = strGender
+        Else
+            strWhere = strWhere & " AND " & strGender
+        End If
+    End If
+    
+    If strAge <> "" Then
+        If strWhere = "" Then
+            strWhere = strAge
+        Else
+            strWhere = strWhere & " AND " & strAge
+        End If
+    End If
+
+    'Apply the filter to the form
+    If strWhere <> "" Then
+        Me.Filter = strWhere
+        Me.FilterOn = True
+    Else
+        Me.FilterOn = False
+    End If
+    
+ErrorHandler:
+Exit Function
+
+End Function
+
+Private Sub ControlGroupFltr_Click()
+
+DoCmd.OpenForm "Control Group ListF"
+
+End Sub
+
+Private Sub ClinicalGroupFltr_Click()
+
+DoCmd.OpenForm "Clinical Group ListF"
+
+End Sub
+
+
+Private Sub Outcome_AfterUpdate()
+
+If Me.Outcome = "Cancelled" Then
+    
+    If MsgBox("Would you like to cancel this appointment in the Appointment Form", vbYesNo) = vbYes Then
+    
+        DoCmd.OpenForm "AppointmentF", , , "[Study ID] =int('" & Me.Study_ID.value & "')"
+        
+    End If
+
+End If
+    
+
+End Sub
+
+Private Sub ResetFilter_Click()
+
+FilterOn = False
+OrderByOn = False
+
+SearchBar.value = "Search..."
+
+End Sub
+
+Private Sub Toggle484_Click()
+
+If Toggle484.value = True Then
+    Me.OrderBy = "[Date Contacted] ASC"
+    OrderByOn = True
+    
+Else
+    Me.OrderBy = "[Date Contacted] DESC"
+    OrderByOn = True
+End If
+    
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 4: Formatting the SearchBar                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub SearchBar_AfterUpdate()
+
+Dim strFilter As String
+Dim filterArray() As String
+
+On Error Resume Next
+
+If (InStr(1, Me.SearchBar, " ") > 0 Or InStr(1, Me.SearchBar, ",")) And Len(Me.SearchBar) > 2 Then
+    
+    If InStr(1, Me.SearchBar, ", ") > 0 Then
+    
+        filterArray = Split(Me.SearchBar, ", ")
+        
+        For Each Item In filterArray()
+            
+        Next Item
+        
+    ElseIf InStr(1, Me.SearchBar, " ") > 0 Then
+        
+        filterArray = Split(Me.SearchBar, " ")
+        
+        For Each Item In filterArray()
+            
+        Next Item
+        
+    End If
+
+    strFilter = "(([First Name] LIKE '*" & filterArray(0) & "*') AND " & "([Last Name] LIKE '*" & filterArray(1) & "*') Or " & "([First Name] LIKE '*" & filterArray(1) & "*') AND " & "([Last Name] LIKE '*" & filterArray(0) & "*'))"
+Else
+
+    strFilter = "(([First Name] LIKE '*" & Me.SearchBar & "*') Or " & "([Last Name] LIKE '*" & Me.SearchBar & "*') Or " & "([Study] LIKE '*" & Me.SearchBar & "*'))"
+
+End If
+
+If SearchBar.value = "" Or IsNull(SearchBar.value) Then
+
+    Call ResetFilter_Click
+'    SearchBar.value = "Search..."
+'    Me.FilterOn = False
+    
+Else:
+
+    Me.Filter = strFilter
+    Me.FilterOn = True
+
+End If
+
+End Sub
+
+Private Sub SearchBar_Click()
+
+    If Me.SearchBar.value = "Search..." Then
+    
+        Me.SearchBar.value = ""
+        
+    End If
+
+End Sub
+
+Private Sub SearchBar_LostFocus()
+
+If Len(Me.SearchBar) = 0 Then
+
+    Me.SearchBar.value = "Search..."
+    
+End If
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 5: Opening Add StudiesF Form to Specific Record    '
+        '             or Adding Date When Clicking On Cell           '
+        '------------------------------------------------------------'
+
+
+
+Private Function OpenStudiesF()
+
+On Error Resume Next
+
+If Not Me.Date_Contacted = "" Then
+
+    DoCmd.OpenForm "StudiesF", acNormal, , , , acNormal, Study_ID
+    
+End If
+    
+End Function
+
+
+Private Sub BtnAddContactAttempt_Click()
+
+Call OpenStudiesF
+
+End Sub
+
+
+
+'Private Sub Study_ID_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Recruitment_Date_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Recruitment_Location_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub txtFirstName_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Last_Name_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Age_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Gender_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Unit_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Telephone_Number_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub txtEmail_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Preferred_Communication_Method_DblClick(Cancel As Integer)
+'
+'Call OpenRVInfoF
+'
+'End Sub
+'
+'Private Sub Date_Contacted_After_Recruitment_DblClick(Cancel As Integer)
+'
+'If Not Me.Recruitment_Date = "" Then
+'
+'    Me.Date_Contacted_After_Recruitment = Date
+'
+'End If
+'
+'End Sub
+'
+'Private Sub Contacted_for_Study_DblClick(Cancel As Integer)
+'
+'If Not Me.Recruitment_Date = "" Then
+'
+'    Me.Contacted_for_Study = Date
+'
+'End If
+'
+'End Sub
+'
+'Private Sub Contacted_For_Clean_Up_DblClick(Cancel As Integer)
+'
+'If Not Me.Recruitment_Date = "" Then
+'
+'    Me.Contacted_For_Clean_Up = Date
+'
+'End If
+'
+'End Sub
+'
+'Private Function OpenRVInfoF()
+'
+'On Error Resume Next
+'
+'If Not Me.Date_Contacted = "" Then
+'
+'    DoCmd.OpenForm "StudiesF", acNormal, "", "[Study ID_StudiesT]=" & Study_ID, , acNormal
+'    DoCmd.GoToRecord acActiveDataObject, "", acPrevious
+'
+'End If
+'
+'End Function

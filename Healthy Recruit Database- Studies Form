@@ -818,8 +818,7 @@ Private Function CreateAppointment(sSubject As String, _
 
     End With
 
-'        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("USARMY Ft Bragg MEDCOM WAMC Calendar DVBIC Research")
-        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("DHA Ft Liberty Womack AMC Calendar MS TBICOE Research")
+        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("[Enter Calendar Name]")
         Dim OApptCopy As Outlook.AppointmentItem
         Set OApptCopy = OAppt.Copy
         OApptCopy.Move OFolder

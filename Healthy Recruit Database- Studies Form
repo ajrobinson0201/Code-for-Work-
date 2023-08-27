@@ -1,0 +1,924 @@
+StudiesF
+
+Public StudyAttempts As New Scripting.Dictionary
+Public NumberContact As New Scripting.Dictionary
+Public MethodOutcome As New Scripting.Dictionary
+
+Public StudyKey As Variant
+Public AttemptsValue As String
+
+Public NumberKey As Variant
+Public ContactValue As String
+
+Public MethodKey As Variant
+Public OutcomeValue As String
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Formatting the Form Load                        '
+        ' Section 2: Record's Study Contact History                  '
+        ' Section 3: Form Real Time Updates                          '
+        ' Section 4: Form Buttons                                    '
+        ' Section 5: Schedule on Appointment Form and Outlook        '
+        ' Section 6: Form Description and Instructions               '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+        
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 1: Formatting the Form Load                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub Form_Load()
+
+If IsNull(Me.OpenArgs) Then
+
+    DoCmd.GoToRecord acDataForm, "StudiesF", acNewRec
+    
+Else:
+
+    Me.Combo0.value = Me.OpenArgs
+    
+End If
+
+Me.TimerInterval = 5
+txtNumofTimesContacted.value = 0
+EndofExtendedStudy.value = ""
+
+End Sub
+
+Private Sub Form_Timer()
+
+Me.TimerInterval = 0
+    txtNumofTimesContacted.value = 0
+    txtNumofTimesContacted.value = txtNumofTimesContacted.value + (DSum("[Study ID]", "StudiesT", "[Study ID] = Combo0.Value AND NOT [Study] = ''") \ Combo0.value)
+    txtNumofTimesContactedForStudy.value = ""
+    
+If txtNumofTimesContacted.value = 0 Or IsNull(txtNumofTimesContacted.value) Then
+
+    Exit Sub
+    
+Else:
+
+    Call Contact_History
+    
+End If
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Record's Study Contact History                  '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+        
+Private Sub BtnContactHistory_Click()
+
+If txtNumofTimesContacted.value = 0 Or IsNull(txtNumofTimesContacted.value) Then
+
+    Call No_Contact
+    
+Else:
+
+    Call Contact_History
+    
+End If
+
+End Sub
+
+Public Function No_Contact()
+
+    MsgBox txtFirstName.value & " has not been contacted for a study"
+
+End Function
+
+Public Function Contact_History()
+
+Dim rs As Recordset
+Set rs = CurrentDb.OpenRecordset("SELECT * FROM StudiesT")
+Dim strFirstName As String
+
+On Error Resume Next
+'If txtNumofTimesContacted.value >= 3 Then
+StudyAttempts.RemoveAll
+NumberContact.RemoveAll
+AttemptsValue = 0
+
+    Do While Not rs.EOF
+    
+        If rs("Study ID") = Combo0.value Then
+        
+            If Not rs("Study") = "" Then
+            
+                StudyKey = rs("Study")
+                
+                If Not StudyAttempts.Exists(StudyKey) Then
+                
+                    StudyAttempts.Add StudyKey, 1
+                    
+                Else:
+                
+                    AttemptsValue = StudyAttempts(StudyKey)
+                    StudyAttempts(StudyKey) = AttemptsValue + 1
+                    
+                End If
+                
+            End If
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+   
+    Dim message As String
+    Dim Pronoun As String
+    
+    If Gender.value = "M" Or Gender.value = "m" Then
+    
+        Pronoun = "He"
+        
+    ElseIf Gender.value = "F" Or Gender.value = "f" Then
+    
+        Pronoun = "She"
+        
+    Else:
+    
+        Pronoun = txtFirstName.value
+        
+    End If
+   
+'    message = txtFirstName.value & " has been contacted " & txtNumofTimesContacted & " times." & vbCrLf & vbCrLf
+
+' loop through each study and print the attempts
+    For Each StudyKey In StudyAttempts.Keys()
+        ' print the study name and total attempts
+        message = message & vbNewLine & txtFirstName & " has been contacted " & StudyAttempts.Item(StudyKey) & " times for " & StudyKey & "."
+    
+        If rs Is Nothing Then
+        
+    '        Dim rs As DAO.Recordset
+            Set rs = CurrentDb.OpenRecordset("StudiesT")
+            
+        End If
+            ' find the last attempt data for this study
+            rs.FindLast "([Study ID] = " & Combo0.value & ") AND ([Study] = '" & StudyKey & "')"
+            
+            If Not rs.NoMatch Then
+            
+                ' get the attempt data
+                Dim attemptDate As String
+                Dim attemptMethod As String
+                Dim attemptOutcome As String
+               
+                attemptDate = Format(rs("Date Contacted"), "mm/dd/yyyy")
+                attemptMethod = rs("Communication Method")
+                attemptOutcome = rs("Outcome")
+            
+                ' print the attempt details
+                message = message & vbNewLine & Pronoun & " was last contacted for " & StudyKey & " on " & attemptDate & " via " & attemptMethod & " resulting in " & attemptOutcome & "." & vbNewLine
+            
+            End If
+    
+    Next StudyKey
+    
+    rs.Close
+    Set rs = Nothing
+
+    Set rs = CurrentDb.OpenRecordset("StudiesT")
+    
+    rs.MoveFirst
+    ExtendedStudy = False
+    
+    Do While Not rs.EOF
+    
+        If rs("Study ID") = Combo0.value Then
+        
+            If rs("Extended Study") = True Then
+            
+                If rs("End of Extended Study") > Date Then
+                
+                    Study = rs("Study")
+                    EndExtendedStudy = rs("End of Extended Study")
+                    ExtendedStudy = True
+                    
+                End If
+                
+            End If
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+    
+    If ExtendedStudy = True Then
+    
+        ESmessage = txtFirstName.value & " is currently enrolled in " & Study & " until " & EndExtendedStudy & "." & vbNewLine
+        
+    Else:
+    
+        ESmessage = ""
+        
+    End If
+    
+    MsgBox ESmessage & message, , txtFirstName.value & " has been contacted " & txtNumofTimesContacted & " times."
+   
+    rs.Close
+    Set rs = Nothing
+
+ End Function
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 3: Form Real Time Updates                          '
+        '                                                            '
+        '------------------------------------------------------------'
+
+Private Sub AppointmentDuration_AfterUpdate()
+
+    Dim x As Integer
+    
+    x = AppointmentDuration.value
+    xMinutes = AppointmentDuration.value * 60
+    txtAppointmentEnd.value = DateAdd("n", xMinutes, Me.txtAppointmentStart.value)
+
+End Sub
+
+Private Sub DurationofExtendedStudy_AfterUpdate()
+
+    Dim x As Long
+    
+    x = StartofExtendedStudy.value
+    xDays = DurationofExtendedStudy.value * 7
+    EndofExtendedStudy.value = DateAdd("d", xDays, Me.StartofExtendedStudy.value)
+    
+End Sub
+
+Private Sub Date_Contacted_AfterUpdate()
+
+    txtTimesContacted.value = txtNumofTimesContactedForStudy.value + 1
+
+End Sub
+
+Private Sub Study_StudiesT_AfterUpdate()
+
+Dim Cell As Integer
+Dim StudyCounter As Integer
+Dim NewStudy As String
+Dim frm As Form
+Dim db As Database
+Dim rs As Recordset
+Dim CheckLoc As Boolean
+
+Set db = CurrentDb()
+Set rs = db.OpenRecordset("StudyReminderInfoT")
+
+rs.MoveFirst
+CheckLoc = False
+Do While Not rs.EOF
+
+    If rs("Study") = Me.Study_StudiesT.value Then
+    
+        CheckLoc = True
+        Exit Do
+        
+    End If
+    
+    rs.MoveNext
+    
+Loop
+
+rs.Close
+Set rs = Nothing
+Set db = Nothing
+
+If CheckLoc = False Then
+
+    If MsgBox("Study is not found in Study Reminder Info Table. Would you like to add a new Study?", vbYesNo, "New Study") = vbYes Then
+        DoCmd.OpenForm "Study Reminder Info", acNormal, , , acFormAdd, acWindowNormal
+
+        NewStudy = Me.Study_StudiesT.value
+
+        Set frm = Forms![Study Reminder Info]
+
+        Set rs = frm.RecordsetClone
+        rs.AddNew
+
+        rs!Study = NewStudy
+        rs![Reminder Info] = "If no Reminder Info, leave blank"
+
+        rs.Update
+
+        rs.Close
+
+        Set rs = Nothing
+        Set frm = Nothing
+
+    ElseIf MsgBox("If there is no Study Specific Reminder Information needed for the current study, please add the study to the table and leave the Reminder Info section blank. The Study Reminder Information is integral to the Reminders Function of this Database. Would you like to add this Study to the Study Reminder Info Table?", vbYesNo, "Study Reminder Info Error") = vbYes Then
+    
+        DoCmd.OpenForm "Study Reminder Info", acNormal, , , acFormAdd, acWindowNormal
+
+        NewStudy = Me.Study_StudiesT.value
+
+        Set frm = Forms![Study Reminder Info]
+        Set rs = frm.RecordsetClone
+        
+        rs.AddNew
+        rs!Study = NewStudy
+        rs![Reminder Info] = "If no Reminder Info, leave blank"
+        rs.Update
+        rs.Close
+
+        Set rs = Nothing
+        Set frm = Nothing
+        
+    End If
+    
+End If
+
+Set db = CurrentDb
+Set rs = db.OpenRecordset("StudiesT")
+
+txtNumofTimesContactedForStudy.value = 0
+
+For Cell = 0 To rs.RecordCount - 1
+
+    If rs.fields("Study ID") = Combo0.value And rs.fields("Study") = Study_StudiesT.value Then
+    
+        txtNumofTimesContactedForStudy.value = txtNumofTimesContactedForStudy.value + 1
+        
+    End If
+    
+    rs.MoveNext
+    
+Next Cell
+
+End Sub
+
+Private Sub txtLocation_AfterUpdate()
+
+Dim db As Database
+Dim rs As Recordset
+Dim CheckLoc As Boolean
+
+Set db = CurrentDb()
+Set rs = db.OpenRecordset("LocationsT")
+       
+    rs.MoveFirst
+    
+    CheckLoc = False
+    
+    Do While Not rs.EOF
+
+        If rs("Abbreviation") = Me.txtLocation.value Or _
+        rs("Location") = Me.txtLocation.value Then
+        
+            CheckLoc = True
+            Exit Do
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+    
+    If CheckLoc = False Then
+    
+        If MsgBox("Location is not found in Locations Table. Would you like to add a new Study Location?", vbYesNo, "New Study Location") = vbYes Then
+            DoCmd.OpenForm "LocationsF", acNormal, , , acFormAdd, acWindowNormal
+            
+            Dim NewLocation As String
+            
+            NewLocation = Me.txtLocation.value
+            
+            Dim frm As Form
+
+            Set frm = Forms![LocationsF]
+            Set rs = frm.RecordsetClone
+            
+            rs.AddNew
+            
+            rs!Location = NewLocation
+            
+            rs.Update
+            rs.Close
+            
+            Set rs = Nothing
+            Set frm = Nothing
+            
+        ElseIf MsgBox("The Location value is integral to other Database functions. Would you like to edit the Study Location so that it matches Locations already in the Database?", vbYesNo, "Location Error") = vbYes Then
+        
+            Exit Sub
+            
+        End If
+        
+    End If
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 4: Save and Close Form                             '
+        '                                                            '
+        '------------------------------------------------------------'
+
+Private Sub SaveAndCloseBtn_Click()
+
+Call SaveStudyInfo
+
+DoCmd.Close acForm, "StudiesF"
+
+End Sub
+
+Private Sub SaveStudyInfo()
+
+Dim Subject As String
+Dim Check As Boolean
+
+Dim db As DAO.Database
+Dim rs As DAO.Recordset
+
+    Set rs = Nothing
+    Set db = Nothing
+    Set db = CurrentDb()
+
+    DoCmd.Save
+
+    If Not txtAppointmentStart.value = "" Then
+    
+        DoCmd.Close acTable, "AppointmentsT"
+        
+        Set rs = db.OpenRecordset("AppointmentT", dbOpenDynaset)
+        
+        Subject = Combo0.value & " " & Study_StudiesT.value
+        
+        rs.MoveFirst
+        Check = False
+        
+        Do While Not rs.EOF
+        
+            If rs![Subject] = Subject And _
+            rs![Appointment Start] = txtAppointmentStart.value Then
+            
+                'MsgBox "An appointment already exists for this participant at this time"
+                Check = True
+                Exit Do
+                
+            End If
+            
+            rs.MoveNext
+            
+        Loop
+        
+    Else:
+    
+        GoTo NoAppointment:
+        
+    End If
+
+    If Check = False Then
+    
+        rs.AddNew
+        rs![Study] = Study_StudiesT.value
+        rs![First Name] = txtFirstName.value
+        rs![Last Name] = txtLastName.value
+        rs![Appointment Start] = txtAppointmentStart.value
+        rs![Location] = txtLocation.value
+        rs![Notes] = txtAppointmentNotes.value
+        rs![Appointment End] = txtAppointmentEnd.value
+        rs![Study ID] = Combo0.value
+        rs![Subject] = Combo0.value & " " & Study_StudiesT.value
+        rs![E-mail] = txtEMail.value
+
+        rs.Update
+        rs.Close
+        
+        Set rs = db.OpenRecordset("AppointmentT", dbOpenDynaset)
+        
+        rs.MoveLast
+        
+        intApptID = rs![Appointment ID]
+        Subject = intApptID & rs![Subject]
+        
+        If MsgBox("Would you like to add appointment to Outlook Calendar?", vbYesNo, "Outlook Appointment") = vbYes Then
+        
+            Call ScheduleAppointment(Subject)
+        
+        End If
+    
+        rs.Close
+        
+        Set rs = Nothing
+        Set db = Nothing
+        
+    End If
+
+SubjectExists:
+
+        Set rs = Nothing
+        Set db = Nothing
+        
+NoAppointment:
+End Sub
+
+Private Sub CloseWithoutSaveBtn_Click()
+On Error GoTo CloseWithoutSaveBtn_Click_Err
+
+    On Error Resume Next
+    DoCmd.GoToControl Screen.PreviousControl.Name
+    Err.Clear
+    If (Not Form.NewRecord) Then
+        DoCmd.RunCommand acCmdDeleteRecord
+    End If
+    If (Form.NewRecord And Not Form.Dirty) Then
+        Beep
+    End If
+    If (Form.NewRecord And Form.Dirty) Then
+        DoCmd.RunCommand acCmdUndo
+    End If
+    If (MacroError <> 0) Then
+        Beep
+        MsgBox MacroError.Description, vbOKOnly, ""
+    End If
+    DoCmd.Close acForm, "StudiesF"
+
+
+CloseWithoutSaveBtn_Click_Exit:
+    Exit Sub
+
+CloseWithoutSaveBtn_Click_Err:
+    MsgBox Error$
+    Resume CloseWithoutSaveBtn_Click_Exit
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 5: Schedule on Appointment Form and Outlook        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+Private Sub SaveAndAddAppointmentsBtn_Click()
+
+If IsNull(Date_Contacted.value) Or IsNull(Communication_Method.value) Or IsNull(Outcome.value) Or IsNull(Study_StudiesT.value) Then
+
+    MsgBox "There is missing information. In order to save, Study, Date Contacted, Communication Method, and Outcome must be documented.", vbOK, "Incomplete Record"
+    Exit Sub
+    
+End If
+    
+Dim db As Database
+Dim rs As Recordset
+Dim CheckLoc As Boolean
+
+Set db = CurrentDb()
+Set rs = db.OpenRecordset("LocationsT")
+       
+    rs.MoveFirst
+       
+    CheckLoc = False
+    
+    Do While Not rs.EOF
+    
+        If rs("Abbreviation") = Me.txtLocation.value Or _
+        rs("Location") = Me.txtLocation.value Then
+        
+            CheckLoc = True
+            Exit Do
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+    
+    If CheckLoc = False Then
+    
+        If MsgBox("Location is not found in Locations Table. Would you like to add a new Study Location?", vbYesNo, "New Study Location") = vbYes Then
+            DoCmd.OpenForm "LocationsF", acNormal
+            
+        ElseIf MsgBox("The Location value is integral to other Database functions. Would you like to edit the Study Location so that it matches Locations already in the Database?", vbYesNo, "Location Error") = vbYes Then
+        
+            Exit Sub
+            
+        End If
+        
+    End If
+    
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+
+    Set db = CurrentDb()
+    
+    DoCmd.Save
+    DoCmd.Close acTable, "AppointmentsT"
+    
+    If Not txtAppointmentStart.value = "" Then
+    
+        Set rs = db.OpenRecordset("AppointmentT", dbOpenDynaset)
+    
+    ' Check to see if this appointment already exists, and if it does, MsgBox "This appointment already exists, would you like to view appointment?"
+        Dim strFindRecord As String
+        
+        strFindRecord = "[First Name] = '" & Me.txtFirstName & "' AND " _
+        & "[Last Name] = '" & txtLastName & "' AND" _
+        & "[Study] = '" & Study_StudiesT & "' AND" _
+        & "[Appointment Start] = #" & txtAppointmentStart & "#"
+        
+        rs.FindFirst strFindRecord
+        
+        If Not rs.NoMatch Then
+        
+            If MsgBox("This appointment already exists, would you like to view appointment?", vbYesNo, "Duplicate Appointment") = vbYes Then
+                DoCmd.OpenForm "Schedule AppointmentF", , , strFindRecord
+            End If
+            
+        Else
+            
+            rs.AddNew
+            rs![Study] = Study_StudiesT.value
+            rs![First Name] = txtFirstName.value
+            rs![Last Name] = txtLastName.value
+            rs![Appointment Start] = txtAppointmentStart.value
+            rs![Location] = txtLocation.value
+            rs![Notes] = txtAppointmentNotes.value
+            rs![Appointment End] = txtAppointmentEnd.value
+            rs![Study ID] = Combo0.value
+            rs![Subject] = Combo0.value & " " & Study_StudiesT.value
+            rs![E-mail] = txtEMail.value
+            rs![Appt Series Number] = 1
+            
+            rs.Update
+            rs.Close
+            
+            Dim Subject As String
+            
+            Set rs = db.OpenRecordset("AppointmentT", dbOpenDynaset)
+            rs.MoveLast
+            intApptID = rs![Appointment ID]
+            Subject = intApptID & rs![Subject]
+                
+            If MsgBox("Would you like to add appointment to Outlook Calendar?", vbYesNo, "Outlook Appointment") = vbYes Then
+            
+                Call ScheduleAppointment(Subject)
+            
+            End If
+            
+            DoCmd.OpenForm "Schedule AppointmentF", , , strFindRecord
+            
+            Set rs = Nothing
+            Set db = Nothing
+            
+        End If
+        
+    Else:
+        DoCmd.Close acForm, "StudiesF"
+        
+    End If
+
+DoCmd.Close acForm, "StudiesF"
+    
+
+End Sub
+
+
+Private Sub ScheduleAppointment(Subject As String)
+
+    Dim strFirstName As String
+    Dim strLastName As String
+    Dim intStudyID As Integer
+    Dim strStudy As String
+    Dim strLocation As String
+    Dim dteStart As Date
+    Dim dteEnd As Date
+    Dim AllDayEvent As Boolean
+    Dim DisplayToUser As Boolean
+
+    Dim db As Database
+    Dim rs As Recordset
+
+    Set rs = Nothing
+    Set db = Nothing
+
+    Set db = CurrentDb()
+
+    intStudyID = Text15.value
+    strFirstName = txtFirstName.value
+    strLastName = txtLastName.value
+    strStudy = Study_StudiesT.value
+    strLocation = txtLocation.value
+    dteStart = txtAppointmentStart.value
+    dteEnd = txtAppointmentEnd.value
+    strNotes = Notes_StudiesT.value
+
+    Call CreateAppointment(Subject, intStudyID & " scheduled for the " & ApptSeriesNum & suffix & " " & strStudy & " Appointment on " _
+    & dteStart & vbNewLine & vbNewLine & strNotes, dteStart, dteEnd, False, strLocation)
+
+End Sub
+
+Private Function CreateAppointment(sSubject As String, _
+                                  sBody As String, _
+                                  dtStart As Date, _
+                                  dtEnd As Date, _
+                                  bAllDayEvent As Boolean, _
+                                  Optional sLocation As String, _
+                                  Optional bDisplayToUser As Boolean = False, _
+                                  Optional sCategories As String)
+    On Error GoTo Error_Handler
+    
+    #Const EarlyBind = False    'Use Late Binding, No Reference Library Required
+    '    #Const EarlyBind = True    'Use Early Binding, Requires Reference Library
+    
+    #If EarlyBind = True Then
+    
+        Dim OApp              As Outlook.Application
+        Dim OAppt             As Outlook.AppointmentItem
+        
+    #Else
+    
+        Dim OApp              As Object
+        Dim OAppt             As Object
+        Const olAppointmentItem = 1
+        
+    #End If
+    
+    Dim bAppOpened            As Boolean
+
+    'Initiate our instance of the oApp object so we can interact with Outlook
+    On Error Resume Next
+    
+    Set OApp = GetObject(, "Outlook.Application")    'Bind to existing instance of Outlook
+    
+    If Err.Number <> 0 Then    'Could not get instance of Outlook, so create a new one
+    
+        Err.Clear
+        Set OApp = CreateObject("Outlook.Application")
+        bAppOpened = False    'Outlook was not already running, we had to start it
+        
+    Else
+    
+        bAppOpened = True    'Outlook was already running
+        
+    End If
+    
+    On Error GoTo Error_Handler
+
+    'Start creating our Appointment
+    Set OAppt = OApp.CreateItem(olAppointmentItem)
+    
+    With OAppt
+        '        .To = ""
+        .Start = dtStart
+        .End = dtEnd
+        .AllDayEvent = bAllDayEvent
+        .Subject = sSubject
+        .Body = sBody
+        '.RTFBody = sBody 'If using formatted text
+        .Location = sLocation
+        
+        If IsMissing(sCategories) = False Then .Categories = sCategories
+
+        If bDisplayToUser = True Then .Display
+        .Save
+
+    End With
+
+'        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("USARMY Ft Bragg MEDCOM WAMC Calendar DVBIC Research")
+        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("DHA Ft Liberty Womack AMC Calendar MS TBICOE Research")
+        Dim OApptCopy As Outlook.AppointmentItem
+        Set OApptCopy = OAppt.Copy
+        OApptCopy.Move OFolder
+
+    'If our code started Outlook, we should close it now that we're done
+    If bAppOpened = False Then
+    
+        OApp.Quit    'There seems to be a delay in this action taking place, but does eventually take place
+        
+    End If
+
+Error_Handler_Exit:
+
+    On Error Resume Next
+    
+    If Not OAppt Is Nothing Then Set OAppt = Nothing
+    If Not OApp Is Nothing Then Set OApp = Nothing
+    Exit Function
+
+Error_Handler:
+
+    MsgBox "The following error has occurred" & vbCrLf & vbCrLf & _
+           "Error Number: " & Err.Number & vbCrLf & _
+           "Error Source: CreateAppointment" & vbCrLf & _
+           "Error Description: " & Err.Description & _
+           Switch(Erl = 0, "", Erl <> 0, vbCrLf & "Line No: " & Erl), _
+           vbOKOnly + vbCritical, "An Error has Occurred!"
+    Resume Error_Handler_Exit
+    
+End Function
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 6: Form Description and Instructions               '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub BtnFormDescription_Click()
+
+    MsgBox "Welcome to the StudiesF Form" & vbNewLine & _
+            "For questions regarding individual items on the form, double click the item's label and a description will appear." & _
+            "This Form is used to add study information as the user calls recruits. Under 'Recruit ID', the user can write the Study ID of the person " & _
+            "whom they have contacted or want to contact and press the down arrow button to select the first and last name that corresponds with the intended Study ID. " & _
+            "The recruits information will self populate under the 'Demographics' and 'Contact Info' headings. 'Total Number of Times Contacted' will " & _
+            "also self populate. 'Number of Times Contacted for This Study' will self-populate after the 'Date Contacted' text box has been filled in. " & _
+            "The 'Schedule Appointment' button will open the 'Schedule AppointmentsF' form, allowing the user to add a row to the 'AppointmentT' table " & _
+            "and create an appointment on Microsoft Outlook. The 'Add Record' button saves the information in this form to the 'StudiesT' table.", _
+             vbOKOnly, "StudiesF Form Description"
+
+End Sub
+
+
+Private Sub lblCommMethod_DblClick(Cancel As Integer)
+
+    MsgBox "The 'Preferred Comm Method' text box is connected to the 'CommunicationMethodQ', which holds the different communication methods utilized during recruitment. If a communication method has been added " _
+    & "previously, it will be found in the drop down box. If this is the first time the communication method has been used, it can be written into the text box so that next " _
+    & "time, it may be found in the drop down box.", _
+    vbOKOnly, "Preferred Communication Method Description"
+
+End Sub
+
+Private Sub lblOutcome_DblClick(Cancel As Integer)
+    MsgBox "The 'Outcome' text box is connected to the 'OutcomesQ', which holds all of the outcomes that have occurred during recruitment. If an outcome has occured " _
+    & "previously, it will be found in the drop down box. If this is the first time an outcome has occured, it can be written into the text box so that next " _
+    & "time, it may be found in the drop down box.", _
+    vbOKOnly, "Outcome Description"
+End Sub
+
+Private Sub lblStudy_DblClick(Cancel As Integer)
+    MsgBox "The 'Study' text box is connected to the 'StudiesQuery', which holds all of the studies that have been input into the 'Study' text box. If a study has been added " _
+    & "previously, it will be found in the drop down box. If this is the first time a recruit has been contacted about a study, it can be written into the text box so that next " _
+    & "time, it may be found in the drop down box.", _
+    vbOKOnly, "Study Description"
+End Sub
+
+Private Sub LblStudyID_DblClick(Cancel As Integer)
+
+    MsgBox "The Study ID text box will self-populate based on the Recruit ID above. This is an auto-key and helps to keep all of the information belonging to the correct individuals.", _
+            vbOKOnly, "Study ID Description"
+
+End Sub
+
+Private Sub lblTimesContacted_DblClick(Cancel As Integer)
+    MsgBox "The 'Times Contacted' text box is locked so that the user cannot edit it. This number changes when a date has been added to the 'Date Contacted' text box. It is valued at " _
+    & "one more than the number of times contacted for this study, as indicated in a text box above.", _
+    vbOKOnly, "Times Contacted Description"
+End Sub
+
+
+Private Sub Recruit_ID_Label_DblClick(Cancel As Integer)
+
+    MsgBox "The Recruit ID text box will determine the information that self-populates in the 'Demographics' and 'Contact Info' sections and the 'Total Number of Times Contacted' " _
+    & "and 'Study ID' text boxes in the 'Add Study Contact Details' section. The Recruit ID can be found on the 'Add Research Volunteer InfoF' form, 'Research Volunteer ListF' form, and " _
+    & "the 'Research VolunteersT' table. This ID will bind the information written into the 'Add Study Contact Details' section to the participant that is contacted.", _
+    vbOKOnly, "Recruit ID Description"
+
+End Sub

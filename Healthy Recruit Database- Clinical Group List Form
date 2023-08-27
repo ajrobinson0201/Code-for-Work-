@@ -1,0 +1,1187 @@
+Public strGender As String
+Public strAge As String
+
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Clinical Group ListF                                       '
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Formatting/Filtering On Form Load and Current   '
+        ' Section 2: Sending out Emails                              '
+        ' Section 3: Total Contacted Count                           '
+        ' Section 4: Record's Study Contact History                  '
+        ' Section 5: Filtering the Records And Refreshing the Form   '
+        ' Section 6: Formatting the SearchBar                        '
+        ' Section 7: Opening StudiesF Form to Specific Record or     '
+        '            Adding Date When Clicking On Cell               '
+        ' Section 8: Miscellaneous ComboBox Functions                '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+        
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 1: Formatting/Filtering On Form Load and Current   '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub Form_Load()
+
+    DoCmd.ApplyFilter "", "[Study Clinical] = True"
+    
+    Dim strSQL As String
+    Dim db As DAO.Database
+    Dim rs As DAO.Recordset
+    Dim totalRecords As Long
+    Dim specRecord As Long
+    
+    strSQL = "SELECT * FROM [Research VolunteersT] WHERE [Study Clinical] = True"
+    
+    Set db = CurrentDb
+    Set rs = db.OpenRecordset(strSQL)
+    
+    
+    totalRecords = 0
+    
+    With rs
+        If Not .EOF And Not .BOF Then
+            .MoveFirst
+            Do Until .EOF
+                totalRecords = totalRecords + 1
+                .MoveNext
+            Loop
+        End If
+        .Close
+    End With
+    
+    specRecord = totalRecords - 32
+    
+    Debug.Print "Total Records: " & totalRecords
+    Debug.Print "Specific Record: " & specRecord
+    
+    Me.Recordset.Move specRecord
+    DoCmd.GoToRecord acDataForm, "Clinical Group ListF", acLast
+
+End Sub
+
+Private Sub Form_Current()
+
+    Dim strSQL As String
+    Dim rs As DAO.Recordset
+
+On Error Resume Next
+If Not IsNull("Recruitment Date") Then
+    ' Get the Study value from StudiesT table for the current StudyID
+'    strSQL = "SELECT [Study] FROM StudiesT WHERE Study ID=" & Forms![Research Volunteers ListF]![Study ID]
+    Set rs = CurrentDb.OpenRecordset("SELECT Study, Outcome, Notes FROM StudiesT WHERE [Study ID]=" & Forms![Clinical Group ListF]![Study ID] & " ORDER BY [Date Contacted] DESC")
+
+    ' Display the Study value in the text box in the footer of the form
+    If Not (rs.EOF And rs.BOF) Then
+    
+        Me.Text432.value = rs!Study & "/" & rs![Outcome]
+        
+    Else
+    
+        Me.Text432.value = "No Study"
+        
+    End If
+    
+    If Not (rs.EOF And rs.BOF) Then
+    
+        Me.Text459.value = rs!Notes
+        
+    Else
+    
+        Me.Text459.value = "No Notes"
+        
+    End If
+    
+    ' Clean up
+    rs.Close
+    Set rs = Nothing
+    
+End If
+
+'CurrentRecord = Me.CurrentRecord
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Sending out Emails                              '
+        '                                                            '
+        '------------------------------------------------------------'
+ 
+Private Sub Command466_Click()
+
+DoCmd.OpenForm "Users", , , , acFormAdd
+
+End Sub
+
+Private Sub Command467_Click()
+
+DoCmd.OpenForm "Emails", , , , acFormAdd
+
+End Sub
+
+Private Sub SendEmail_Click()
+
+    Dim selectedUser As String
+    Dim selectedEmailDescription As String
+    Dim selectedSubject As String
+    Dim selectedEmailBody As String
+    Dim selectedSignature As String
+    
+    selectedUser = Me.Combo408.value
+    selectedEmailDescription = Me.Combo402.value
+    
+    Dim rs1 As DAO.Recordset
+    Set rs1 = CurrentDb.OpenRecordset("SELECT * FROM [Emails] WHERE [Description] = '" & selectedEmailDescription & "'")
+    
+    selectedEmailBody = rs1![E-mail]
+
+    Set rs1 = Nothing
+    
+    Dim rs2 As DAO.Recordset
+    Set rs2 = CurrentDb.OpenRecordset("SELECT * FROM [Emails] WHERE [Description] = '" & selectedEmailDescription & "'")
+    
+    selectedSubject = rs2![Subject]
+
+    Set rs2 = Nothing
+    
+    Dim rs3 As DAO.Recordset
+    Set rs3 = CurrentDb.OpenRecordset("SELECT * FROM [Users] WHERE [User] = '" & selectedUser & "'")
+    
+    selectedSignature = rs3![SignatureBlock]
+
+    Set rs3 = Nothing
+
+firstName = txtFirstName.value
+
+' Declare variables for Outlook objects
+Dim OutlookApp As Object
+Dim OutlookMail As Object
+
+' Declare variables for email details
+Dim Recipient As String
+Dim Subject As String
+Dim Body As String
+Dim Signature As String
+
+' Get the email address from the current row
+If Not Me.txtEMail.value = "" Then
+
+    Recipient = Me.txtEMail.value
+    
+Else:
+
+    MsgBox "There is no E-mail Address given."
+    Exit Sub
+    
+End If
+
+If Time < #12:00:00 PM# Then
+
+    greeting = "Good Morning "
+    
+Else:
+
+    greeting = "Good Afternoon "
+    
+End If
+
+' Set the subject and body of the email
+Subject = selectedSubject
+Body = greeting & firstName & "," & "<br>" & "<br>" & selectedEmailBody & "<br>" & "<br>"
+Signature = selectedSignature
+
+' Create a new instance of Outlook
+Set OutlookApp = CreateObject("Outlook.Application")
+
+' Create a new email message
+Set OutlookMail = OutlookApp.CreateItem(0)
+
+' Add the recipient, subject, and body to the email message
+With OutlookMail
+    .To = Recipient
+    .Subject = Subject
+    .htmlBody = Body & Signature
+    .Display ' This will Display the email before sending
+End With
+
+' Clean up the Outlook objects
+Set OutlookMail = Nothing
+Set OutlookApp = Nothing
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 3: Total Contacted Count                           '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub TotalContactedSince_Click()
+    Dim x As Integer
+    Dim i As Integer
+    Dim TotalContact As Integer
+    Dim TotalAnswer As Integer
+    Dim ControContact As Integer
+    Dim ClinicalContact As Integer
+    Dim RemoveContact As Integer
+
+    xDate = Text425.value
+    x = Date - xDate
+    
+    TotalContact = 0
+    ControlContact = 0
+    ClinicalContact = 0
+    RemoveContact = 0
+    TotalAnswer = 0
+    
+    For i = 0 To x
+        TotalContact = TotalContact + DCount("*", "Research VolunteersT", "[Contacted for Clean-up]=Date()- '" & i & "'")
+        TotalAnswer = TotalAnswer + DCount("*", "Research VolunteersT", "[Contacted for Clean-up]=Date()- " & i & " and ([Study Control] = True " _
+                                                                                                                & "  or [Study Clinical] = True " _
+                                                                                                                & "  or [Remove from List] = True)")
+        ControlContact = ControlContact + DCount("*", "Research VolunteersT", "[Contacted for Clean-up]=Date()- " & i & " and [Study Control] = True")
+        ClinicalContact = ClinicalContact + DCount("*", "Research VolunteersT", "[Contacted for Clean-up]=Date()- " & i & " and [Study Clinical] = True")
+        RemoveContact = RemoveContact + DCount("*", "Research VolunteersT", "[Contacted for Clean-up]=Date()- " & i & " and [Remove from List] = True")
+
+    Next i
+    
+    If x > 1 Then
+        MsgBox "Total Contacted in the last " & x & " days is " & TotalContact & "." & vbNewLine _
+             & "Total Answers in the last " & x & " days is " & TotalAnswer & "." & vbNewLine _
+             & "Total Answered Control in the last " & x & " days is " & ControlContact & "." & vbNewLine _
+             & "Total Answered Clinical in the last " & x & " days is " & ClinicalContact & "." & vbNewLine _
+             & "Total Asked to be Removed in the last " & x & " days is " & RemoveContact & ".", _
+                vbOKOnly, "Contact Update Since " & xDate
+                
+    ElseIf x = 1 Then
+        MsgBox "Total Contacted Since Yesterday is " & TotalContact & "." & vbNewLine _
+             & "Total Answers Since Yesterday is " & TotalAnswer & "." & vbNewLine _
+             & "Total Answered Control Since Yesterday is " & ControlContact & "." & vbNewLine _
+             & "Total Answered Clinical Since Yesterday is " & ClinicalContact & "." & vbNewLine _
+             & "Total Asked to be Removed Since Yesterday is " & RemoveContact & ".", _
+                vbOKOnly, "Contact Update Since Yesterday, " & xDate
+                
+    ElseIf x = 0 Then
+        MsgBox "Total Contacted Today is " & TotalContact & "." & vbNewLine _
+             & "Total Answers Today is " & TotalAnswer & "." & vbNewLine _
+             & "Total Answered Control Today is " & ControlContact & "." & vbNewLine _
+             & "Total Answered Clinical Today is " & ClinicalContact & "." & vbNewLine _
+             & "Total Asked to be Removed Today is " & RemoveContact & ".", _
+                vbOKOnly, "Contact Update Today, " & xDate
+                
+    Else:
+        MsgBox "Total Contacted is " & TotalContact & "." & vbNewLine _
+             & "Total Answers is " & TotalAnswer & "." & vbNewLine _
+             & "Total Answered Control is " & ControlContact & "." & vbNewLine _
+             & "Total Answered Clinical is " & ClinicalContact & "." & vbNewLine _
+             & "Total Asked to be Removed is " & RemoveContact & ".", _
+                vbOKOnly, "Contact Update, " & xDate
+                
+    End If
+    
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 4: Record's Study Contact History                  '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub ContactHistoryBtn_Click()
+
+    Call Contact_History
+
+End Sub
+
+Public Function Contact_History()
+
+'On Error Resume Next
+Dim rs As Recordset
+Set rs = CurrentDb.OpenRecordset("SELECT * FROM StudiesT")
+Dim strFirstName As String
+
+StudyAttempts.RemoveAll
+NumberContact.RemoveAll
+AttemptsValue = 0
+
+    Do While Not rs.EOF
+    
+        If rs("Study ID") = Study_ID.value Then
+        
+            If Not rs("Study") = "" Then
+            
+                StudyKey = rs("Study")
+                
+                If Not StudyAttempts.Exists(StudyKey) Then
+                
+                    StudyAttempts.Add StudyKey, 1
+                    
+                Else:
+                    AttemptsValue = StudyAttempts(StudyKey)
+                    StudyAttempts(StudyKey) = AttemptsValue + 1
+                    
+                End If
+                
+            End If
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+   
+    Dim message As String
+    Dim Pronoun As String
+    
+    If Gender.value = "M" Or Gender.value = "m" Then
+    
+        Pronoun = "He"
+        
+    ElseIf Gender.value = "F" Or Gender.value = "f" Then
+    
+        Pronoun = "She"
+        
+    Else:
+    
+        Pronoun = txtFirstName.value
+        
+    End If
+   
+' loop through each study and print the attempts
+    For Each StudyKey In StudyAttempts.Keys()
+        ' print the study name and total attempts
+        message = message & vbNewLine & txtFirstName & " has been contacted " & StudyAttempts.Item(StudyKey) & " times for " & StudyKey & "."
+    
+        If rs Is Nothing Then
+        
+            Set rs = CurrentDb.OpenRecordset("StudiesT")
+            
+        End If
+            ' find the last attempt data for this study
+            rs.FindLast "([Study ID] = " & Study_ID.value & ") AND ([Study] = '" & StudyKey & "')"
+            
+            If Not rs.NoMatch Then
+                ' get the attempt data
+                Dim attemptDate As String
+                Dim attemptMethod As String
+                Dim attemptOutcome As String
+               
+                attemptDate = Format(rs("Date Contacted"), "mm/dd/yyyy")
+                If Not IsNull(rs("Communication Method")) Then
+                
+                    attemptMethod = " via " & rs("Communication Method")
+                    
+                End If
+                
+                attemptOutcome = rs("Outcome")
+               
+                ' print the attempt details
+                message = message & vbNewLine & "He was last contacted for " & StudyKey & " on " & attemptDate & attemptMethod & " resulting in " & attemptOutcome & "." & vbNewLine
+            
+            End If
+            
+        txtNumofTimesContacted = StudyAttempts.Item(StudyKey) + txtNumofTimesContacted
+        
+    Next StudyKey
+    
+        rs.Close
+        
+    Set rs = Nothing
+    Set rs = CurrentDb.OpenRecordset("StudiesT")
+    
+    rs.MoveFirst
+    ExtendedStudy = False
+    
+    Do While Not rs.EOF
+    
+        If rs("Study ID") = Study_ID.value Then
+        
+            If rs("Extended Study") = True Then
+            
+                If rs("End of Extended Study") > Date Then
+                
+                    Study = rs("Study")
+                    EndExtendedStudy = rs("End of Extended Study")
+                    ExtendedStudy = True
+                    
+                End If
+                
+            End If
+            
+        End If
+        
+        rs.MoveNext
+        
+    Loop
+    
+    If ExtendedStudy = True Then
+    
+        
+        ESmessage = txtFirstName.value & " is currently enrolled in " & Study & " until " & EndExtendedStudy & "." & vbNewLine
+    Else:
+    
+        ESmessage = ""
+        
+    End If
+    
+    If Not message = "" Then
+    
+        MsgBox ESmessage & message, , txtFirstName.value & " has been contacted " & txtNumofTimesContacted & " times."
+    
+    Else:
+    
+        MsgBox txtFirstName.value & " has not been contacted for a study yet.", , txtFirstName.value & " has not been contacted for a study yet."
+    
+    End If
+    
+ End Function
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+ 
+        '------------------------------------------------------------'
+        ' Section 5: Filtering the Records And Refreshing the Form   '
+        '                                                            '
+        '------------------------------------------------------------'
+ 
+
+Private Function FormFilter()
+
+    Dim strWhere As String
+'    Dim strGender As String
+'    Dim strAge As String
+    Dim strSCon As String
+    Dim strSCli As String
+    Dim strRFL As String
+
+On Error GoTo ErrorHandler:
+
+    strFilter = Me.Filter
+    Debug.Print strFilter
+
+    'Check if gender has been selected
+    If Not IsNull(Me.Combo440) Then
+    
+        If Me.Combo440.value <> "" Then
+            If strGender <> "" Then
+                If InStr(1, strFilter, strGender) Then
+                    strFilter = Replace(strFilter, strGender & " AND ", "")
+                    Debug.Print strFilter
+                End If
+            End If
+            strGender = "Gender = '" & Me.Combo440 & "'"
+
+        End If
+    
+    End If
+
+    'Check if age has been selected
+    If Not IsNull(Me.Combo447) Then
+    
+       If strAge <> "" Then
+            If InStr(1, strFilter, strAge) Then
+                strFilter = Replace(strFilter, strAge & " AND ", "")
+                Debug.Print strFilter
+            End If
+        End If
+            strAge = "Age = " & Me.Combo447
+        
+    End If
+
+    'Combine the criteria with "AND"
+    If (Not IsNull(strGender) And strGender <> "") Then
+    
+        strWhere = strGender
+
+    End If
+    
+    If (Not IsNull(strAge) And strAge <> "") Then
+    
+        If strWhere = "" Then
+        
+            strWhere = strAge
+
+        Else
+        
+            strWhere = strWhere & " AND " & strAge
+
+        End If
+        
+    End If
+
+    'Apply the filter to the form
+    If strWhere <> "" Then
+    
+        Me.Filter = strWhere & " AND " & strFilter
+        Me.FilterOn = True
+        
+    Else
+        
+        Me.Filter = strFilter
+        Me.FilterOn = True
+        
+    End If
+    
+ErrorHandler:
+'DoCmd.ApplyFilter "", "[Study Control] = True"
+Exit Function
+
+End Function
+
+Private Sub Combo447_AfterUpdate()
+
+Dim strFilter As String
+
+If IsNull(Me.Combo447) Then
+
+    strFilter = Me.Filter
+    
+    If InStr(1, strFilter, strAge & " AND ") Then
+        
+        strFilter = Replace(strFilter, strAge & " AND ", "")
+    
+    ElseIf InStr(1, strFilter, " AND " & strAge) Then
+        
+        strFilter = Replace(strFilter, " AND " & strAge, "")
+
+    ElseIf InStr(1, strFilter, strAge) Then
+
+        strFilter = Replace(strFilter, strAge, "")
+
+    End If
+    strAge = ""
+    Me.Filter = strFilter
+    
+    Me.FilterOn = True
+    
+Else
+
+    Call FormFilter
+    
+End If
+
+End Sub
+
+Private Sub Combo440_AfterUpdate()
+
+Dim strFilter As String
+
+If IsNull(Me.Combo440) Then
+
+    strFilter = Me.Filter
+    
+    If InStr(1, strFilter, strGender & " AND ") Then
+        strFilter = Replace(strFilter, strGender & " AND ", "")
+    
+    ElseIf InStr(1, strFilter, " AND " & strGender) Then
+        strFilter = Replace(strFilter, " AND " & strGender, "")
+    
+    ElseIf InStr(1, strFilter, strGender) Then
+        strFilter = Replace(strFilter, strGender, "")
+    
+    End If
+    strGender = ""
+    Me.Filter = strFilter
+    
+    Me.FilterOn = True
+    
+Else
+
+    Call FormFilter
+    
+End If
+
+End Sub
+
+Private Sub ResetFilter_Click()
+On Error Resume Next
+
+
+
+ThisRecord1 = Me![Study ID]
+ThisRecord2 = ThisRecord1
+
+Combo447.value = ""
+Combo440.value = ""
+SearchBar.value = "Search..."
+DoCmd.ApplyFilter "", "[Study Clinical] = True"
+
+Me.TimerInterval = 5
+
+End Sub
+
+Private Sub Form_Timer()
+
+Me.TimerInterval = 0
+
+Me.Recordset.FindFirst "[Study ID] = " & ThisRecord2
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 6: Formatting the SearchBar                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub SearchBar_AfterUpdate()
+
+Dim strFilter As String
+Dim filterArray() As String
+
+On Error Resume Next
+
+If (InStr(1, Me.SearchBar, " ") > 0 Or InStr(1, Me.SearchBar, ",")) And Len(Me.SearchBar) > 2 Then
+    
+    If InStr(1, Me.SearchBar, ", ") > 0 Then
+    
+        filterArray = Split(Me.SearchBar, ", ")
+        
+        For Each Item In filterArray()
+            Debug.Print Item
+        Next Item
+        
+    ElseIf InStr(1, Me.SearchBar, " ") > 0 Then
+        
+        filterArray = Split(Me.SearchBar, " ")
+        
+        For Each Item In filterArray()
+            Debug.Print Item
+        Next Item
+        
+    End If
+
+    strFilter = "(([First Name] LIKE '*" & filterArray(0) & "*') AND " & "([Last Name] LIKE '*" & filterArray(1) & "*') Or " & "([First Name] LIKE '*" & filterArray(1) & "*') AND " & "([Last Name] LIKE '*" & filterArray(0) & "*'))AND [Study Clinical] = True"
+Else
+
+    strFilter = "(([First Name] LIKE '*" & Me.SearchBar & "*') Or " & "([Last Name] LIKE '*" & Me.SearchBar & "*') Or " & "([E-mail] LIKE '*" & Me.SearchBar & "*') Or " & "([Telephone Number] LIKE '*" & Me.SearchBar & "*'))AND [Study Clinical] = True"
+
+End If
+Combo447.value = ""
+Combo440.value = ""
+
+Me.Filter = strFilter
+Me.FilterOn = True
+
+If SearchBar.value = "" Or IsNull(SearchBar.value) Then
+
+    SearchBar.value = "Search..."
+    Call ResetFilter_Click
+    
+End If
+    
+
+End Sub
+
+Private Sub SearchBar_Click()
+
+    If Me.SearchBar.value = "Search..." Then
+    
+        Me.SearchBar.value = ""
+        
+    End If
+
+End Sub
+
+Private Sub SearchBar_GotFocus()
+
+
+    If Me.SearchBar = "Search First or Last Name or Email..." Then
+    
+        Me.SearchBar.value = ""
+        
+    End If
+
+End Sub
+
+Private Sub SearchBar_LostFocus()
+
+If Len(Me.SearchBar) = 0 Then
+
+    Me.SearchBar.value = "Search..."
+    
+End If
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 7: Opening StudiesF Form to Specific Record or     '
+        '          Adding Date When Clicking On Cell                 '
+        '------------------------------------------------------------'
+
+
+Private Sub ID_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Recruitment_Date_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Recruitment_Location_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub txtFirstName_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Last_Name_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Age_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Gender_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Unit_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Telephone_Number_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub txtEmail_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+    
+End Sub
+
+Private Sub Preferred_Communication_Method_DblClick(Cancel As Integer)
+
+Call OpenStudiesF
+
+End Sub
+
+Private Sub Date_Contacted_After_Recruitment_DblClick(Cancel As Integer)
+
+If Not Me.Recruitment_Date = "" Then
+
+    Me.Date_Contacted_After_Recruitment = Date
+    
+End If
+
+End Sub
+
+Private Sub Contacted_for_Study_DblClick(Cancel As Integer)
+
+If Not Me.Recruitment_Date = "" Then
+
+    Me.Contacted_for_Study = Date
+    
+End If
+
+End Sub
+
+Private Function OpenStudiesF()
+
+On Error Resume Next
+If Not Me.Recruitment_Date = "" Then
+
+    DoCmd.OpenForm "StudiesF", acNormal, , , , acNormal, Study_ID
+    
+End If
+    
+End Function
+
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 8: Miscellaneous ComboBox Functions                '
+        '                                                            '
+        '------------------------------------------------------------'
+
+Public Function DescriptiveStats()
+
+    Dim db As DAO.Database
+    Dim rs As DAO.Recordset
+    Dim strSQL As String
+    Dim strFilter As String
+    
+'    If (IsNull(Combo447.value) Or Combo447.value = "") And (IsNull(Combo440.value) Or Combo440.value = "") Then
+'        strFilter = ""
+'    ElseIf (Not IsNull(Combo447.value) And Combo447.value <> "") And (IsNull(Combo440.value) Or Combo440.value = "") Then
+'        strFilter = " AND Age = " & Combo447.value
+'    ElseIf (IsNull(Combo447.value) Or Combo447.value = "") And (Not IsNull(Combo440.value) And Combo440.value <> "") Then
+'        strFilter = " AND Gender = '" & Combo440.value & "'"
+'    ElseIf (Not IsNull(Combo447.value) And Combo447.value <> "") And (Not IsNull(Combo440.value) And Combo440.value <> "") Then
+'        strFilter = " AND Gender = '" & Combo440.value & "'" & " AND Age = " & Combo447.value
+'    End If
+    
+'
+'    If Me.FilterOn Then
+        strFilter = Me.Filter
+        strSQL = "SELECT Age, Gender FROM [Research VolunteersT] WHERE " & strFilter
+'    Else:
+    
+        ' Set the SQL query to retrieve the data from your table
+    strSQL = "SELECT Age, Gender, [Study Clinical] FROM [Research VolunteersT] WHERE " & strFilter
+'
+'    End If
+    
+    Debug.Print strSQL
+    ' Open the recordset based on the query
+    Set db = CurrentDb
+    Set rs = db.OpenRecordset(strSQL)
+    
+    On Error Resume Next
+    ' Check if the recordset is not empty
+    If Not rs.EOF Then
+        rs.MoveFirst
+        
+        ' Initialize variables to hold statistics
+        Dim mean1 As Double
+        Dim stdDev1 As Double
+        Dim min1 As Variant
+        Dim max1 As Variant
+        Dim mv As Integer
+        
+        mv = 0
+        min1 = 100
+
+        Do Until rs.EOF
+            ' Retrieve values from the recordset
+            Dim value1 As Variant
+            
+            If IsNull(rs("Age")) Then
+                mv = mv + 1
+                GoTo NextLoop1
+            Else
+                value1 = rs("Age").value
+            End If
+
+            mean1 = mean1 + value1
+
+            
+            If IsNull(min1) Or value1 < min1 Then min1 = value1
+            If IsNull(max1) Or value1 > max1 Then max1 = value1
+NextLoop1:
+            rs.MoveNext
+        Loop
+        
+        ' Calculate the final statistics
+        Dim Count As Long
+        Dim n As Long
+        Count = rs.RecordCount - mv
+        mean1 = Round((mean1 / Count), 2)
+        
+        rs.MoveFirst
+        
+        Dim var As Double
+        
+        Do Until rs.EOF
+        
+            If IsNull(rs("Age")) Then
+                mv = mv + 1
+                GoTo NextLoop2
+            Else
+                value1 = rs("Age").value
+            End If
+            
+            var = ((value1 - mean1) ^ 2) + var
+NextLoop2:
+            rs.MoveNext
+            
+        Loop
+        
+        Dim values() As Variant
+        
+        ReDim values(Count - 1)
+        
+        rs.MoveFirst
+        
+        Dim i As Long
+        i = 0
+        Do Until rs.EOF
+        
+            If IsNull(rs("Age")) Then
+                GoTo NextLoop3:
+            Else
+                values(i) = rs("Age").value
+                i = i + 1
+            End If
+            
+NextLoop3:
+            rs.MoveNext
+        
+        Loop
+        
+        SortArray values
+        
+        Dim q1 As Double
+        Dim q2 As Double
+        Dim q3 As Double
+        
+        q1 = CalculatePercentile(values, 0.25)
+        q2 = CalculatePercentile(values, 0.5)
+        q3 = CalculatePercentile(values, 0.75)
+    
+        Dim iqr As Double
+        
+        iqr = q3 - q1
+    
+        'mean2 = mean2 / count
+        n = Count - 1
+        stdDev1 = var / n
+        stdDev1 = Round(Sqr(stdDev1), 2)
+        'stdDev2 = Sqr(stdDev2 / count)
+        
+        Dim m As Long
+        Dim f As Long
+        
+        m = 0
+        f = 0
+        
+        rs.MoveFirst
+        
+        Do Until rs.EOF
+        
+            If IsNull(rs("Gender")) Then
+            
+                GoTo NextLoop4:
+                
+            ElseIf rs("Gender") = "M" Or _
+                   rs("Gender") = "m" Then
+                   
+                   m = m + 1
+            
+            ElseIf rs("Gender") = "F" Or _
+                   rs("Gender") = "f" Then
+                   
+                   f = f + 1
+            End If
+            
+NextLoop4:
+            rs.MoveNext
+        
+        Loop
+        
+        Dim mPerc As String
+        Dim fPerc As String
+        
+        mPerc = Round((m / (m + f) * 100), 2)
+        fPerc = Round((f / (m + f) * 100), 2)
+        
+            
+                        ' Display the statistics
+        MsgBox "Current Filter: " & strFilter & vbNewLine & vbNewLine & _
+               "Age: " & vbNewLine & _
+               "Count: " & Count & vbNewLine & _
+               "Mean = " & mean1 & vbNewLine & _
+               "StdDev = " & stdDev1 & vbNewLine & _
+               "Min = " & min1 & vbNewLine & _
+               "25% = " & q1 & vbNewLine & _
+               "50% = " & q2 & vbNewLine & _
+               "75% = " & q3 & vbNewLine & _
+               "Max = " & max1 & vbNewLine & _
+               "IQR = " & iqr & vbNewLine & vbNewLine & _
+               "Gender:" & vbNewLine & _
+               "Male = " & m & ", " & mPerc & "%" & vbNewLine & _
+               "Female = " & f & ", " & fPerc & "%"
+        
+
+    Else
+        MsgBox "No data found."
+    End If
+    
+    ' Close the recordset and database objects
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+End Function
+
+Private Sub SortArray(ByRef arr() As Variant)
+
+    Dim i As Long
+    Dim j As Long
+    Dim temp As Variant
+    On Error Resume Next
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If arr(i) > arr(j) Then
+                temp = arr(j)
+                arr(j) = arr(i)
+                arr(i) = temp
+            End If
+        Next j
+    Next i
+
+    
+End Sub
+
+
+Private Function CalculatePercentile(ByRef arr() As Variant, ByVal percentile As Double) As Double
+
+    Dim n As Long
+    Dim k As Long
+    On Error Resume Next
+    n = UBound(arr)
+    k = (n - 1) * percentile + 1
+    
+    If k = Int(k) Then
+        CalculatePercentile = arr(k)
+    Else
+        Dim d As Double
+        Dim f As Double
+        
+        k = Int(k)
+        d = k - Int(k)
+        f = arr(k + 1) - arr(k)
+        
+        CalculatePercentile = arr(k) + d * f
+    End If
+
+
+End Function
+
+Public Function FilterOutContacted()
+
+'FilterOn = False
+On Error Resume Next
+
+    Me.Filter = "(IsNull([Contacted for Study]) Or [Contacted for Study] <= DateAdd('d', -5, Date())) AND Not [Recruitment Date] <= DateAdd('m', -18, Date()) AND " & _
+                "[Remove from List] <> True AND [Study Clinical] = True AND (IsNull([Notes]) Or [Notes] Not LIKE '*Contacted 3 Times*')"
+    
+    Me.FilterOn = True
+
+
+End Function
+
+Public Function HypeMeUp()
+
+Dim randomIndex As Integer
+Dim phrase(1 To 7) As String
+
+'______________________________________________________________________________'
+
+phrase(1) = "Keep up the good work!"
+
+phrase(2) = "You miss 100% of the shots you don't take" & vbNewLine & "-Wayne Gretzky" & vbNewLine & "-Michael Scott"
+
+phrase(3) = "You can do anything you set your mind to!"
+
+phrase(4) = "Don't forget to fill out your timecard!"
+
+phrase(5) = "Strive for progress, not perfection"
+
+phrase(6) = "Stay positive and productive"
+
+phrase(7) = "You're doing a great job!"
+
+'______________________________________________________________________________'
+
+If lastDisplayedIndex = 0 Then lastDisplayedIndex = -1
+
+Do
+
+randomIndex = Int((7 - 1 + 1) * Rnd + 1)
+
+Loop While randomIndex = lastDisplayedIndex
+
+lastDisplayedIndex = randomIndex
+
+'Debug.Print lastDisplayedIndex
+
+MsgBox phrase(randomIndex)
+
+End Function
+
+Public Function ViewAllContactAttempts()
+
+DoCmd.OpenForm "Contact Attempts"
+
+End Function
+
+Private Sub CallMacros_Click()
+
+Dim CallMacro As String
+
+On Error Resume Next
+
+CallMacro = cmboCallMacro.value
+
+If InStr(1, CallMacro, " ") Then
+    CallMacro = Replace(CallMacro, " ", "")
+End If
+    
+
+If cmboCallMacro.value = "Select Macro" Then
+
+    MsgBox "Please Select Macro"
+    
+Else
+
+'    Debug.Print cmboCallMacro.value
+
+    CallByName Me, CallMacro, VbMethod
+
+End If
+
+End Sub

@@ -349,8 +349,7 @@ Public Function DeleteOutlookAppointment(strSubject As String)
         objAppointment.Delete
 
         Set OApp = CreateObject("Outlook.Application")
-    '    Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("USARMY Ft Bragg MEDCOM WAMC Calendar DVBIC Research")
-        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("DHA Ft Liberty Womack AMC Calendar MS TBICOE Research")
+        Set OFolder = OApp.Session.GetDefaultFolder(olFolderCalendar).Folders("[Enter Calendar Name]")
         
         For Each OApptCopy In OFolder.Items
 

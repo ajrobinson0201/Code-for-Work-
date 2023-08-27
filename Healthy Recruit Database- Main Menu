@@ -1,0 +1,459 @@
+Main Menu
+
+
+Private Const strPathSOP As String = "V:\DVBIC\ANAM Mobile\Data Collection\1. Data to be Run\ANAM Mobile - original file export\data export 202209\model 850\"
+Public Check As Boolean
+Public SentList As String
+Public emailList As String
+Public nameList As String
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Got to Database Forms                           '
+        ' Section 2: Open SOP From V: Drive                          '
+        '           ~Change strPathSOP if V: Drive Path Changes~     '
+        ' Section 3: Send Appointment Reminders and                  '
+        '            Update AppointmentF                             '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+
+        '------------------------------------------------------------'
+        ' Section 1: Got to Database Forms                            '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+
+Private Sub Healthy_Recruit_List_Btn_Click()
+
+    DoCmd.OpenForm "Research Volunteers ListF"
+
+End Sub
+
+
+Private Sub Add_Research_Volunteer_Click()
+
+    DoCmd.OpenForm "Add Research Volunteer InfoF"
+
+End Sub
+
+Private Sub BtnOpenControlGroupF_Click()
+
+    DoCmd.OpenForm "Control Group ListF", acNormal
+
+End Sub
+
+Private Sub BtnOpenClinicalGroupF_Click()
+
+    DoCmd.OpenForm "Clinical Group ListF"
+
+End Sub
+
+Private Sub BtnOpenStudiesListF_Click()
+
+    DoCmd.OpenForm "Contact Attempts"
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Open SOP From V: Drive                          '
+        '           ~Change strPathSOP if V: Drive Path Changes~     '
+        '------------------------------------------------------------'
+        
+
+Private Sub BtnOpenSOP_Click()
+
+    Dim objWord As Object
+    Dim strPathSOP As String
+    
+    strPathSOP = "V:\DVBIC\1. RESEARCH\2. Control Recruitment\Control Recruitment\Recruitment SOP\Access Database SOP.docx"
+    
+    Set objWord = CreateObject("Word.Application")
+    
+    objWord.Documents.Open strPathSOP
+    
+    objWord.Visible = True
+    
+    Set objWord = Nothing
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 3: Send Appointment Reminders and                  '
+        '            Update AppointmentF                             '
+        '------------------------------------------------------------'
+
+
+Private Sub BtnSendReminders_Click()
+
+If IsNull(Me.Combo408.value) Then
+
+    MsgBox "Please Select a User for Signature Block"
+    Exit Sub
+    
+End If
+
+Check = False
+
+    RecordSetLoop "1 Week Reminder"
+    RecordSetLoop "3 Day Reminder"
+    RecordSetLoop "1 Day Reminder"
+
+    If Check = False Then
+    
+        If MsgBox("No New Reminders to be Sent. Would you like to view Appointments?", vbYesNo, "No New Reminders") = vbYes Then
+        
+            DoCmd.OpenForm "AppointmentF"
+            
+        End If
+    End If
+
+End Sub
+
+Private Sub RecordSetLoop(ByVal reminderType)
+
+    Dim rs As DAO.Recordset
+    Dim db As DAO.Database
+    Dim apptDate As Date
+    
+    Set db = CurrentDb()
+    Set rs = db.OpenRecordset("AppointmentT")
+
+    nameList = ""
+    emailList = ""
+    SentList = ""
+
+    If IsNull(Me.Combo408.value) Then
+    
+        MsgBox "Please Select a User for Signature Block"
+        Exit Sub
+        
+    End If
+
+    rs.MoveFirst
+    
+    Do While Not rs.EOF
+    
+        If Not rs![Appt Series Number] = 0 Then
+        
+            If Not IsNull(rs![Appointment Start]) Then
+            
+                apptDate = rs![Appointment Start]
+                
+            End If
+
+            Select Case reminderType
+            
+                Case "1 Day Reminder"
+                    Criteria = DateDiff("h", Date, apptDate) <= 36 And _
+                                        apptDate > Date And _
+                                        IsNull(rs![1 Day Reminder])
+                                        
+                
+                Case "3 Day Reminder"
+                    Criteria = DateDiff("d", Date, apptDate) <= 3 And _
+                                        DateDiff("h", Date, apptDate) > 36 And _
+                                        apptDate > Date And _
+                                        IsNull(rs![3 Day Reminder])
+                                        
+                Case "1 Week Reminder"
+                    Criteria = DateDiff("d", Date, apptDate) <= 7 And _
+                                        DateDiff("d", Date, apptDate) > 3 And _
+                                        apptDate > Date And _
+                                        IsNull(rs![1 Week Reminder])
+                                        
+            End Select
+            
+            If Not IsNull(rs![Appointment Start]) Then
+            
+                apptDate = rs![Appointment Start]
+                
+            End If
+            
+            If Criteria Then
+
+                    nameList = nameList & rs![First Name] & " " & rs![Last Name] & vbCrLf
+                    emailList = emailList & rs![E-mail] & ";"
+                    SentList = SentList & rs![Appointment ID] & ";"
+
+            End If
+
+        End If
+        
+        rs.MoveNext
+
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+
+    ReminderMessage reminderType
+
+End Sub
+
+Private Sub ReminderMessage(ByVal reminderType)
+
+    If Len(nameList) > 0 Then
+    
+        Check = True
+
+        If MsgBox("Contacts Ready for " & reminderType & vbCrLf & vbCrLf & _
+                  "Would you like to send the " & reminderType & " to the following people?" & vbCrLf & vbCrLf & _
+                  nameList, vbYesNo + vbQuestion, reminderType) = vbYes Then
+                  
+            SendReminder
+
+            If MsgBox("Enter Today's Date into " & reminderType & " Field" & vbCrLf & vbCrLf & _
+              "Would you like to mark that the " & reminderType & " has been sent the following people?" & vbCrLf & vbCrLf & _
+              nameList, vbYesNo + vbQuestion, "Populate Today's Date") = vbYes Then
+                
+            PopulateReminder reminderType
+
+            End If
+
+        End If
+
+    End If
+    
+End Sub
+
+Sub SendReminder()
+'
+    Dim db As DAO.Database
+    Dim rst As DAO.Recordset
+    Dim apptDate As Date
+    Dim apptName As String
+    Dim apptList As String
+    Dim emailMessage As String
+    Dim emailSubject As String
+    Dim emailTo As String
+    Dim emailReminder As Boolean
+    Dim olApp As Object
+    Dim olMail As Object
+    Dim olSig As String
+    Dim i As Integer
+    Dim Recipient As String
+    Dim OpenLocT As Boolean
+    Dim FormExists As Boolean
+    Dim frm As Form
+
+    Set db = CurrentDb()
+    Set rst = db.OpenRecordset("AppointmentT")
+
+    rst.MoveFirst
+    
+    OpenLocT = False
+    FormExists = False
+    
+    Do While Not rst.EOF
+
+        If InStr(SentList, rst("Appointment ID")) > 0 Then
+
+                selectedUser = Me.Combo408.value
+                selectedLocation = rst("Location")
+                selectedStudy = rst("Study")
+                
+                Dim rs3 As DAO.Recordset
+                Set rs3 = CurrentDb.OpenRecordset("SELECT * FROM [Users] WHERE [User] = '" & selectedUser & "'")
+
+                selectedSignature = rs3![SignatureBlock]
+                
+                If SysCmd(acSysCmdGetObjectState, acForm, "AppointmentF") <> acObjStateOpen Then
+                    DoCmd.OpenForm "AppointmentF"
+                    FormExists = True
+                End If
+                
+                RCPhoneNumber = Forms("AppointmentF").Controls("RCPhone").value
+                TBICoEPhoneNumber = Forms("AppointmentF").Controls("TBICoEMainPhone").value
+                
+                Set rs3 = Nothing
+                
+                Dim rs5 As DAO.Recordset
+                Set rs5 = CurrentDb.OpenRecordset("SELECT * FROM [StudyReminderInfoT] WHERE [Study] = '" & selectedStudy & "'")
+                
+                RecordCount = DCount("*", "StudyReminderInfoT", "Study = '" & selectedStudy & "'")
+                
+                If RecordCount > 0 Then
+
+                    If Len(rs5![Reminder Info]) > 1 And _
+                    Not rs5![Reminder Info] = "" And _
+                    Not rs5![Reminder Info] = " " And _
+                    Not rs5![Reminder Info] = "N/A" And _
+                    Not rs5![Reminder Info] = "n/a" And _
+                    Not rs5![Reminder Info] = "N/a" And _
+                    Not rs5![Reminder Info] = "None" And _
+                    Not rs5![Reminder Info] = "NONE" And _
+                    Not rs5![Reminder Info] = "If no Reminder Info, leave blank" And _
+                    Not rs5![Reminder Info] = "none" Then
+                        studyreminders = "Please Remember: " & "<br>" & rs5![Reminder Info] & "<br><br>"
+                        
+                    Else:
+                        studyreminders = ""
+                    End If
+                Else
+                    studyreminders = ""
+                End If
+
+                Dim rs4 As DAO.Recordset
+                Set rs4 = CurrentDb.OpenRecordset("SELECT * From [LocationsT] WHERE [Abbreviation] = '" & selectedLocation & "'")
+
+                If IsNull(DLookup("[Location]", "LocationsT", "[Abbreviation] = '" & selectedLocation & "'")) Then
+
+                    If MsgBox("No Study Location Found for Participant. Would you like to Add Study Location and then send a new Reminder?", _
+                    vbYesNo, "No Study Location Found") = vbYes Then
+                    
+                        MsgBox "Reminder will not be sent to " & rst("First Name") & " " & rst("Last Name")
+                        SentList = Replace(SentList, rst("Appointment ID") & ";", "")
+                        nameList = Replace(nameList, rst![First Name] & " " & rst![Last Name] & vbCrLf, "")
+                        OpenLocT = True
+                        GoTo NextLoop:
+                        
+                    Else
+                        
+                        apptDuration = DateDiff("h", rst("Appointment Start"), rst("Appointment End"))
+                        apptDate = rst("Appointment Start")
+                        apptName = rst("First Name") & " " & rst("Last Name")
+                        emailMessage = "Hello " & apptName & "," & "<br><br>" & "This is a friendly reminder of your appointment on " & Format(apptDate, "Long Date") & " at " & _
+                        Format(apptDate, "Long Time") & ". The appointment should last around " & apptDuration & " hours. Please try to arrive 15 minutes before your appointment." & _
+                        "<br><br>" & studyreminders & "If you have any questions or concerns, please call: " & "<br><br>" & "Research Coordinator: " & RCPhoneNumber & "<br>" & "TBICoE Main Office: " & TBICoEPhoneNumber & _
+                        "<br><br>" & "We look forward to seeing you!" & "<br><br>" & "Respectfully," & "<br>" & selectedSignature
+                        emailSubject = "Reminder: Appointment on " & Format(apptDate, "Long Date")
+                        emailTo = rst("E-mail")
+    
+                        Set rs4 = Nothing
+        
+                        GoTo NoLocation:
+                        
+                    End If
+
+                End If
+
+                If IsNull(DLookup("[Abbreviation]", "LocationsT", "[Abbreviation] = '" & selectedLocation & "'")) Then
+                
+                    messageLocation = rs4![Location]
+                    
+                Else:
+                
+                    messageLocation = rs4![Abbreviation]
+                    
+                End If
+
+                If IsNull(rs4![Address]) Then
+                
+                    MsgBox "No address given. Would you like to add an address?", vbYesNo, "No Address"
+                    
+                    GoTo NoLocation:
+                    
+                Else:
+                
+                    messageAddress = rs4![Address]
+                    
+                End If
+                
+                    Set rs4 = Nothing
+
+                apptDuration = DateDiff("h", rst("Appointment Start"), rst("Appointment End"))
+                apptDate = rst("Appointment Start")
+                apptName = rst("First Name") & " " & rst("Last Name")
+                emailMessage = "Hello " & apptName & "," & "<br><br>" & "This is a friendly reminder of your appointment on " & Format(apptDate, "Long Date") & " at " & _
+                Format(apptDate, "Long Time") & ". The appointment should last around " & apptDuration & " hours. Please try to arrive at the " & messageLocation & " 15 minutes before your appointment. The address can be found below." & _
+                "<br><br>" & studyreminders & "If you have any questions or concerns, please call: " & "<br><br>" & "Research Coordinator: " & RCPhoneNumber & "<br>" & "TBICoE Main Office: " & TBICoEPhoneNumber & _
+                "<br><br>" & "We look forward to seeing you!" & "<br><br>" & messageAbbreviation & " Address: " & "<br>" & messageAddress & "<br><br>" & "Respectfully," & "<br>" & selectedSignature
+                emailSubject = "Reminder: Appointment on " & Format(apptDate, "Long Date")
+                emailTo = rst("E-mail")
+                
+NoLocation:
+
+                Set olApp = New Outlook.Application
+                Set olMail = olApp.CreateItem(0)
+
+                With olMail
+                
+                    .Subject = emailSubject
+                    .To = emailTo
+                    .htmlBody = emailMessage & vbCrLf & vbCrLf
+                    .Display
+                    
+                End With
+                
+            End If
+
+NextLoop:
+
+        rst.MoveNext
+        
+    Loop
+    
+    rst.Close
+    db.Close
+    
+    If OpenLocT = True Then
+    
+        DoCmd.OpenForm "LocationsF", acNormal
+        
+    End If
+    
+    If FormExists Then
+        DoCmd.Close acForm, "AppointmentF"
+    End If
+    
+End Sub
+
+
+Sub PopulateReminder(ByVal reminderType)
+
+    Dim rs As DAO.Recordset
+    Dim db As DAO.Database
+    Dim nameList As String
+    Dim emailList As String
+
+    Set db = CurrentDb()
+    Set rs = db.OpenRecordset("AppointmentT")
+
+    rs.MoveFirst
+
+    Do While Not rs.EOF
+    
+        If Not rs![Appt Series Number] = 0 Then
+
+            If InStr(SentList, rs("Appointment ID")) > 0 Then
+
+                    rs.Edit
+                    rs.fields(reminderType).value = Date
+                    rs.Update
+
+            End If
+            
+        End If
+        
+        rs.MoveNext
+
+    Loop
+
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+
+End Sub

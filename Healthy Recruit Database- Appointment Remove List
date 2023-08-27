@@ -1,0 +1,74 @@
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Appointment Remove ListF                                   '
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Formatting the Form Load                        '
+        ' Section 2: Delete All Appointments in Form                 '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 1: Formatting the Form Load                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub Form_Load()
+
+    DoCmd.ApplyFilter "", "[Appointment Start] <= DateAdd('m', -6, Date()) Or [Cancelled] = 'Cancelled' Or isNull([Appointment Start])"
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Delete All Appointments in Form                 '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+
+Private Sub DeleteAllRecordsBtn_Click()
+Dim rst As DAO.Recordset
+Dim password As String
+
+If MsgBox("Are you sure you want to delete all appointments listed on this Form?", vbYesNo + vbQuestion, "Confirm Delete") = vbYes Then
+    password = InputBox("Please input password to delete records", "Password Required")
+    If password = "tbicoe307" Then
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL "DELETE * FROM AppointmentT WHERE [Appointment ID] IN (SELECT [Appointment ID] FROM [AppointmentT] WHERE  [Appointment Start] <= DateAdd('m', -6, Date()) Or [Cancelled] = 'Cancelled' Or isNull([Appointment Start]))"
+        'DoCmd.RunSQL "DELETE * FROM AppointmentT WHERE [Study ID] IN (SELECT [Study ID] FROM [Research VolunteersT] WHERE [Remove from List] = True Or [Recruitment Date] <= DateAdd('m', -18, Date()))"
+
+        Set rst = Me.RecordsetClone
+        
+        If Not (rst.EOF And rst.BOF) Then
+            rst.MoveFirst
+            Do Until rst.EOF = True
+            On Error Resume Next
+                rst.Delete
+                rst.MoveNext
+            Loop
+        End If
+    Else:
+        MsgBox "Wrong Password"
+    End If
+
+    DoCmd.SetWarnings True
+
+End If
+
+Me.Requery
+
+End Sub

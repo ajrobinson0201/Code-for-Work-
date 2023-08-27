@@ -1,0 +1,558 @@
+DataBase Growth
+
+Public origRowSouce As String
+
+Private Sub Command54_Click()
+
+Dim db As Database
+Dim rsN As Recordset
+Dim rsR As Recordset
+Dim rsG As Recordset
+Dim SQLN As String
+Dim SQLR As String
+Dim SQLG As String
+Dim strMR As String
+Dim arrMR() As String
+Dim strMR0 As String
+Dim strMR1 As String
+Dim dteMR As Date
+Dim dteMR2 As String
+Dim dteME As Date
+Dim strME0 As String
+Dim strME1 As String
+Dim strME As String
+Dim nxtMR As String
+Dim nxtarrMR() As String
+Dim nxtMR0 As String
+Dim nxtMR1 As String
+Dim nxtdteMR As String
+Dim i As Long
+Dim intRC As Integer
+Dim intEC As Integer
+Dim intREC As Integer
+Dim intNG As Integer
+Dim rsGExists As Boolean
+Dim f As Integer
+
+On Error Resume Next
+SQLN = "SELECT * From [Recruit Numbers]"
+SQLR = "SELECT * FROM [Delete Receipts]"
+SQLG = "SELECT * FROM [Database Growth]"
+
+Set db = CurrentDb
+Set rsN = db.OpenRecordset(SQLN)
+Set rsR = db.OpenRecordset(SQLR)
+Set rsG = db.OpenRecordset(SQLG)
+
+f = 1
+
+rsN.MoveFirst
+Do While Not rsN.EOF
+
+    i = 1000
+    intRC = 0
+    intEC = 0
+    intREC = 0
+    intNG = 0
+
+    strMR = rsN("Month Recruited")
+    intRC = rsN("Count")
+    
+    arrMR = Split(strMR, " ")
+    
+    If UBound(arrMR) = 1 Then
+        
+        strMR0 = arrMR(0)
+        strMR1 = arrMR(1)
+    
+    End If
+    
+    
+    If strMR0 = "Jan" Then
+        strMR0 = DateSerial(strMR1, 1, 15)
+    ElseIf strMR0 = "Feb" Then
+        strMR0 = DateSerial(strMR1, 2, 15)
+    ElseIf strMR0 = "Mar" Then
+        strMR0 = DateSerial(strMR1, 3, 15)
+    ElseIf strMR0 = "Apr" Then
+        strMR0 = DateSerial(strMR1, 4, 15)
+    ElseIf strMR0 = "May" Then
+        strMR0 = DateSerial(strMR1, 5, 15)
+    ElseIf strMR0 = "Jun" Then
+        strMR0 = DateSerial(strMR1, 6, 15)
+    ElseIf strMR0 = "Jul" Then
+        strMR0 = DateSerial(strMR1, 7, 15)
+    ElseIf strMR0 = "Aug" Then
+        strMR0 = DateSerial(strMR1, 8, 15)
+    ElseIf strMR0 = "Sep" Then
+        strMR0 = DateSerial(strMR1, 9, 15)
+    ElseIf strMR0 = "Oct" Then
+        strMR0 = DateSerial(strMR1, 10, 15)
+    ElseIf strMR0 = "Nov" Then
+        strMR0 = DateSerial(strMR1, 11, 15)
+    ElseIf strMR0 = "Dec" Then
+        strMR0 = DateSerial(strMR1, 12, 15)
+    End If
+    
+    dteMR = Format(strMR0, "mm-dd-yyyy")
+    
+    Debug.Print dteMR
+    
+    If Not rsN.BOF Then
+        rsN.MovePrevious
+        i = i - 1
+    End If
+
+NextMonth:
+
+    dteME = DateAdd("m", -18, dteMR)
+    
+    strME0 = Format(dteME, "mmm")
+    strME1 = Format(dteME, "yyyy")
+    strME = strME0 & " " & strME1
+    
+    dteMR2 = Format(strMR, "yyyy") & "/" & Format(strMR, "mm")
+    Debug.Print "This is dteMR2: " & dteMR2 & vbCrLf & "This is strMR: " & strMR
+    
+    Debug.Print strME
+    
+    Do While Not rsN.BOF
+        
+        If rsN("Month Recruited") = strME Then
+            
+            intEC = rsN("Count")
+            GoTo ExitrsN
+        End If
+        
+        i = i - 1
+        rsN.MovePrevious
+        
+    Loop
+    
+ExitrsN:
+    
+    If Not rsR.BOF Or rsR.EOF Then
+        rsR.MoveFirst
+        Do While Not rsR.EOF
+            
+            If rsR("Month Recruited") = strME Then
+                
+                intEC = intEC + rsN("Count")
+            
+            ElseIf rsR("Month Recruited") = strMR Then
+                If DateDiff("m", dteMR, Date) < 18 Then
+                    intREC = rsN("Count")
+                End If
+            
+            End If
+        
+            rsR.MoveNext
+        
+        Loop
+    End If
+    
+    rsGExists = False
+    rsG.MoveFirst
+    Do While Not rsG.EOF
+    
+        If rsG("Month Recruited") = strMR Then
+
+            rsGExists = True
+            GoTo ExitrsG
+        
+        End If
+        
+        rsG.MoveNext
+    
+    Loop
+    
+ExitrsG:
+
+    If rsGExists = True Then
+        rsG.Edit
+        rsG("Expired/Removed Count") = intEC
+        rsG("Expired/Removed Count") = intEC & "/" & intREC
+        rsG("Net Growth") = intRC - (intEC + intREC)
+        rsG("dteMonth Recruited") = dteMR2
+        rsG.Update
+    Else
+            
+        rsG.AddNew
+        rsG("Month Recruited") = strMR
+        rsG("Recruited Count") = intRC
+        rsG("Month Expired") = strME
+        rsG("Expired/Removed Count") = intEC & "/" & intREC
+        rsG("Net Growth") = intRC - (intEC + intREC)
+        rsG("dteMonth Recruited") = dteMR2
+        rsG.Update
+    
+    End If
+
+ 
+    Do Until i = 1000
+        
+        rsN.MoveNext
+        i = i + 1
+        
+    Loop
+
+    
+    intNG = intRC - (intEC + intREC)
+    
+    Debug.Print strMR
+    Debug.Print "Number Recruited: " & intRC & ", Number Expired: " & intEC & ", Number Removed: " & intREC & ", Net Growth: " & intNG
+
+    
+    Debug.Print "Next Loop"
+    
+    Dim nxtdteMR2 As Date
+    
+    nxtdteMR2 = DateAdd("m", 1, dteMR)
+    
+    rsN.MoveNext
+    
+    If rsN.EOF Then
+        GoTo FinishLoop:
+    End If
+    
+    i = 1000
+    intRC = 0
+    intEC = 0
+    intREC = 0
+    intNG = 0
+
+    nxtMR = rsN("Month Recruited")
+    
+    Debug.Print nxtMR
+    
+    nxtarrMR = Split(nxtMR, " ")
+    
+    If UBound(nxtarrMR) = 1 Then
+        
+        nxtMR0 = nxtarrMR(0)
+        nxtMR1 = nxtarrMR(1)
+    
+    End If
+    
+    If nxtMR0 = "Jan" Then
+        nxtMR0 = DateSerial(nxtMR1, 1, 15)
+    ElseIf nxtMR0 = "Feb" Then
+        nxtMR0 = DateSerial(nxtMR1, 2, 15)
+    ElseIf nxtMR0 = "Mar" Then
+        nxtMR0 = DateSerial(nxtMR1, 3, 15)
+    ElseIf nxtMR0 = "Apr" Then
+        nxtMR0 = DateSerial(nxtMR1, 4, 15)
+    ElseIf nxtMR0 = "May" Then
+        nxtMR0 = DateSerial(nxtMR1, 5, 15)
+    ElseIf nxtMR0 = "Jun" Then
+        nxtMR0 = DateSerial(nxtMR1, 6, 15)
+    ElseIf nxtMR0 = "Jul" Then
+        nxtMR0 = DateSerial(nxtMR1, 7, 15)
+    ElseIf nxtMR0 = "Aug" Then
+        nxtMR0 = DateSerial(nxtMR1, 8, 15)
+    ElseIf nxtMR0 = "Sep" Then
+        nxtMR0 = DateSerial(nxtMR1, 9, 15)
+    ElseIf nxtMR0 = "Oct" Then
+        nxtMR0 = DateSerial(nxtMR1, 10, 15)
+    ElseIf nxtMR0 = "Nov" Then
+        nxtMR0 = DateSerial(nxtMR1, 11, 15)
+    ElseIf nxtMR0 = "Dec" Then
+        nxtMR0 = DateSerial(nxtMR1, 12, 15)
+    End If
+    
+    nxtdteMR = Format(nxtMR0, "mm-dd-yyyy")
+    
+    Dim month As String
+    Dim year As String
+    
+    month = Format(nxtdteMR2, "mm")
+    year = Format(nxtdteMR2, "yyyy")
+    If nxtdteMR <> nxtdteMR2 Then
+    
+        If month = "01" Then
+            month = "Jan"
+        ElseIf month = "02" Then
+            month = "Feb"
+        ElseIf month = "03" Then
+            month = "Mar"
+        ElseIf month = "04" Then
+            month = "Apr"
+        ElseIf month = "05" Then
+            month = "May"
+        ElseIf month = "06" Then
+            month = "Jun"
+        ElseIf month = "07" Then
+            month = "Jul"
+        ElseIf month = "08" Then
+            month = "Aug"
+        ElseIf month = "09" Then
+            month = "Sep"
+        ElseIf month = "10" Then
+            month = "Oct"
+        ElseIf month = "11" Then
+            month = "Nov"
+        ElseIf month = "12" Then
+            month = "Dec"
+        End If
+        
+        strMR = month & " " & year
+        
+        Debug.Print strMR
+        
+        rsN.MovePrevious
+        dteMR = nxtdteMR2
+        GoTo NextMonth:
+    End If
+    
+    Dim dtedif As Integer
+    
+    dtedif = DateDiff("m", nxtdteMR, dteMR)
+    
+    Debug.Print dtedif
+    
+    If dtedif > 1 Or dtedif < -1 Then
+        rsN.MovePrevious
+        strMR = nxtMR
+        dteMR = nxtdteMR
+        f = f + 1
+        GoTo NextMonth:
+    End If
+    
+FinishLoop:
+f = f + 1
+Loop
+
+Me.Requery
+
+End Sub
+
+
+Private Sub Command55_Click()
+Dim strToday As String
+Dim dteToday As Date
+Dim strMonthRecruited As String
+Dim dMonthRecruited As Date
+Dim strMonthsBack As String
+Dim intMonthsBack As Integer
+Dim strSQL As String
+Dim db As DAO.Database
+Dim rs As DAO.Recordset
+Dim i As Integer
+Dim myGrowthChart As Chart
+Dim xAxis As ChartAxis
+
+'On Error GoTo ErrorHandler:
+dteToday = CDate(Date)
+strToday = Format(dteToday, "mmm yyyy")
+'
+'Debug.Print strToday
+
+
+strMonthRecruited = InputBox("Enter the Month Recruited value, press enter, and then enter the number of months previous that you would like to view" & _
+                             vbNewLine & vbNewLine & "Ex: Jan 2023", "Month Recruited", strToday)
+
+dMonthRecruited = DateValue(strMonthRecruited)
+
+Debug.Print dMonthRecruited
+
+intMonthsBack = Int(InputBox("Enter the Number of Months prior to the Month Recruited that you would like to chart", "Number of Months", "6"))
+
+'inMonthsBack = Int(strMonthsBack)
+
+strSQL = "SELECT TOP " & intMonthsBack & " * FROM [Database Growth] " & _
+         "WHERE CDate([Month Recruited]) <= #" & Format(dMonthRecruited, "mm/16/yyyy") & "# " & _
+         "ORDER BY CDate([Month Recruited]) DESC;"
+
+
+Debug.Print strSQL
+
+Set db = CurrentDb()
+Set rs = db.OpenRecordset(strSQL)
+'
+'With rs
+'    Do Until .EOF
+'        Debug.Print rs![Month Recruited]
+'        Debug.Print rs![dteMonth Recruited]
+'        .MoveNext
+'    Loop
+'End With
+
+'Set myGrowthChart = Me.GrowthChart
+'Set xAxis = myGrowthChart.ChartAxis(xlCategory, xlPrimary)
+
+origRowSource = Me.GrowthChart.RowSource
+
+'Me.GrowthChart.RowSource = ""
+Dim thisMonth As String
+
+'With rs
+'
+'    While Not .EOF
+'
+'        thisMonth = rs![Month Recruited]
+'        Debug.Print thisMonth
+'        .MoveNext
+'    Wend
+'
+'    i = 1
+'    Do While i < intMonthsBack + 1
+'
+'        .MovePrevious
+'
+'        thisMonth = rs![Month Recruited]
+'        Debug.Print thisMonth
+'
+'        'Me!GrowthChart.AddItem .fields("Month Recruited") & ";" & .fields("Recruited Count") & ";" & .fields("Net Growth")
+'
+'        i = i + 1
+'
+'    Loop
+'
+'
+'End With
+
+
+
+With Me!GrowthChart
+
+    .RowSource = strSQL
+'    .Axes(xlValue, xlPrimary).AxisTitle.Text = "Month Recruited"
+    
+    
+'    .RowSourceType = "Table/Query"
+
+'    .PrimaryValuesAxisFormat = DateValue("mm/yyyy")
+'    .PrimaryValuesAxisFormat = Format(rs![Month Recruited], "mm/yyyy")
+'    .DisplayDataLabel True
+'    .ColumnCount = 2
+'
+'    While .SeriesCollection.Count > 0
+'        .SeriesCollection.Delete (1)
+'    Wend
+'
+'    .SeriesCollection.Add
+'    .SeriesCollection(1).Name = "Recruited Count"
+'    .SeriesCollection(1).SetData chDimCategories, chDataLiteral, rs.GetRows(rs.RecordCount)
+
+'    .SeriesCollection.Add
+'    .SeriesCollection(2).Name = "Net Growth"
+'    .SeriesCollection(2).SetData chDimCategories, chDataLiteral, rs.GetRows(rs.RecordCount)
+    For Each series In .ChartSeriesCollection
+        'series.Name
+        Debug.Print series.Name
+        'series.PlotSeriesOn
+'        series.DisplayDataLabel
+    Next series
+
+    For Each cv In .ChartValuesCollection
+        Debug.Print (cv.Name)
+    Next
+
+    For Each axis In .ChartAxisCollection
+        Debug.Print axis.Name
+    Next
+    
+    Dim Count As Integer
+    
+'    Count = GrowthChart.ChartSeriesCollection.Count
+'    Debug.Print Count
+'
+'    GrowthChart.ChartSeriesCollection(1) = "Net Growth"
+'    .ChartSeriesCollection(2).Name = "Recruited Count"
+'    .ChartSeriesCollection.Name = "Net Growth"
+    
+    .ChartTitle = "Growth Chart: Last " & intMonthsBack & " Months from " & strMonthRecruited
+'    .AxisTitle.Caption = "Month Recruited"
+    
+'    .HasTitle = True
+'    .ChartTitle.Caption = "Growth Chart: Last " & intMonthsBack & " Months from " & strMonthRecruited
+    .Requery
+End With
+
+
+
+'rs.Close
+'db.Close
+'Set rs = Nothing
+'Set db = Nothing
+
+ErrorHandler:
+
+End Sub
+
+
+
+Private Sub Command59_Click()
+On Error GoTo ErrorHandler:
+Dim strSQL As String
+
+'strSQL = "SELECT [dteMonth Recruited], Sum([Recruited Count]) AS [SumOfRecruited Count], Sum([Net Growth]) AS [SumOfNet Growth] FROM [Database Growth] GROUP BY [dteMonth Recruited] ORDER BY [dteMonth Recruited]"
+
+'Me.GrowthChart.RowSource = origRowSource
+
+With Me!GrowthChart
+
+'    .RowSource = "[Database Growth]"
+''    .TransformedRowSource = strSQL
+'    .ChartAxis = "[dteMonth Recruited]"
+'    .ChartValues = "[Recruit Count" & ";" & "[Net Growth]"
+    
+'    .RowSourceType = "Table/Query"
+
+'    .PrimaryValuesAxisFormat = DateValue("mm/yyyy")
+'    .PrimaryValuesAxisFormat = Format(rs![Month Recruited], "mm/yyyy")
+    '.DisplayDataLabel = True
+'    .ColumnCount = 2
+'
+'    While .SeriesCollection.Count > 0
+'        .SeriesCollection.Delete (1)
+'    Wend
+'
+'    .SeriesCollection.Add
+'    .SeriesCollection(1).Name = "Recruited Count"
+'    .SeriesCollection(1).SetData chDimCategories, chDataLiteral, rs.GetRows(rs.RecordCount)
+
+'    .SeriesCollection.Add
+'    .SeriesCollection(2).Name = "Net Growth"
+'    .SeriesCollection(2).SetData chDimCategories, chDataLiteral, rs.GetRows(rs.RecordCount)
+    For Each series In .ChartSeriesCollection
+        'series.Name
+        Debug.Print series.Name
+        'series.PlotSeriesOn
+'        series.DisplayDataLabel
+    Next series
+
+    For Each cv In .ChartValuesCollection
+        Debug.Print (cv.Name)
+    Next
+
+    For Each axis In .ChartAxisCollection
+        Debug.Print axis.Name
+    Next
+    
+    Dim Count As Integer
+    
+'    Count = GrowthChart.ChartSeriesCollection.Count
+'    Debug.Print Count
+'
+'    GrowthChart.ChartSeriesCollection(1) = "Net Growth"
+'    .ChartSeriesCollection(2).Name = "Recruited Count"
+'    .ChartSeriesCollection.Name = "Net Growth"
+    
+'    .ChartTitle = "Growth Chart: Last " & intMonthsBack & " Months from " & strMonthRecruited
+'    .AxisTitle.Caption = "Month Recruited"
+    
+'    .HasTitle = True
+'    .ChartTitle.Caption = "Growth Chart: Last " & intMonthsBack & " Months from " & strMonthRecruited
+ErrorHandler:
+    .Requery
+End With
+
+
+End Sub
+
+Private Sub Command60_Click()
+
+Me.Requery
+
+End Sub

@@ -1,0 +1,358 @@
+Remove ListF
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Formatting the Form Load                        '
+        ' Section 2: Delete All Records in Form                      '
+        '                                                            '
+        '------------------------------------------------------------'
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 1: Formatting the Form Load                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub Form_Load()
+
+    DoCmd.ApplyFilter "", "[Remove from List] = True Or [Recruitment Date] <= DateAdd('m', -18, Date())"
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Delete All Records in Form                      '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+
+Private Sub DeleteAllRecordsBtn_Click()
+Dim rst As DAO.Recordset
+Dim rs1 As DAO.Recordset
+Dim db As Database
+Dim password As String
+Dim Count As Integer
+Dim firstDate As Date
+
+Set db = CurrentDb
+
+Set rs1 = db.OpenRecordset([Research VolunteersT])
+
+rs1.MoveFirst
+firstDate = rs1("Recruitment Date").value
+rs1.Close
+Set rs1 = Nothing
+
+Count = Text415.value
+
+If MsgBox("Are you sure you want to delete all 'to Remove/Expired' records?", vbYesNo + vbQuestion, "Confirm Delete") = vbYes Then
+
+    password = InputBox("Please input password to delete records", "Password Required")
+    
+    If password = "tbicoe307" Then
+    
+        Call AddDeleteReceipt
+        
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL "DELETE * FROM StudiesT WHERE [Study ID] IN (SELECT [Study ID] FROM [Research VolunteersT] WHERE [Remove from List] = True Or [Recruitment Date] <= DateAdd('m', -18, Date()))"
+        DoCmd.RunSQL "DELETE * FROM AppointmentT WHERE [Study ID] IN (SELECT [Study ID] FROM [Research VolunteersT] WHERE [Remove from List] = True Or [Recruitment Date] <= DateAdd('m', -18, Date()))"
+        
+        Set rst = Me.RecordsetClone
+        
+        If Not (rst.EOF And rst.BOF) Then
+        
+            rst.MoveFirst
+            
+            Do Until rst.EOF = True
+            
+                rst.Delete
+                rst.MoveNext
+                
+            Loop
+            
+        End If
+        
+    Else:
+    
+        MsgBox "Wrong Password"
+        
+    End If
+
+    DoCmd.SetWarnings True
+
+End If
+
+rst.Close
+Set rst = Nothing
+
+Me.Requery
+
+End Sub
+
+Private Function AddDeleteReceipt()
+
+Dim year As String
+Dim month As String
+
+Dim rs1 As DAO.Recordset
+Dim rs2 As DAO.Recordset
+Dim db As DAO.Database
+
+Dim strFilter As String
+Dim strSQL1 As String
+Dim strSQL2 As String
+Dim RecruitCount As New Scripting.Dictionary
+Dim RecruitKey As Variant
+Dim CountValue As Variant
+Dim RecruitDate As String
+
+strFilter = Me.Filter
+Debug.Print strFilter
+strSQL1 = "SELECT [Recruitment Date] FROM [Research VolunteersT] WHERE " & strFilter
+strSQL2 = "SELECT [Date Deleted], [Month Recruited], Count FROM [Delete Receipts]"
+
+Set db = CurrentDb
+Set rs1 = db.OpenRecordset(strSQL1)
+Set rs2 = db.OpenRecordset(strSQL2)
+
+RecruitCount.RemoveAll
+CountValue = 0
+rs1.MoveFirst
+Do While Not rs1.EOF
+
+    year = Format(rs1("Recruitment Date"), "yyyy")
+    
+'    Debug.Print year
+    
+    month = Format(rs1("Recruitment Date"), "mm")
+    
+'    Debug.Print month
+    
+    If month = "01" Then
+        month = "Jan"
+    ElseIf month = "02" Then
+        month = "Feb"
+    ElseIf month = "03" Then
+        month = "Mar"
+    ElseIf month = "04" Then
+        month = "Apr"
+    ElseIf month = "05" Then
+        month = "May"
+    ElseIf month = "06" Then
+        month = "Jun"
+    ElseIf month = "07" Then
+        month = "Jul"
+    ElseIf month = "08" Then
+        month = "Aug"
+    ElseIf month = "09" Then
+        month = "Sep"
+    ElseIf month = "10" Then
+        month = "Oct"
+    ElseIf month = "11" Then
+        month = "Nov"
+    ElseIf month = "12" Then
+        month = "Dec"
+    End If
+    
+    RecruitKey = month & " " & year
+    
+    If Not RecruitCount.Exists(RecruitKey) Then
+        RecruitCount.Add RecruitKey, 1
+    Else
+        CountValue = RecruitCount(RecruitKey)
+        RecruitCount(RecruitKey) = CountValue + 1
+    End If
+    
+    'Debug.Print CountValue
+'    For Each Item In RecruitCount
+'        Debug.Print Item
+'    Next Item
+    rs1.MoveNext
+Loop
+
+rs1.Close
+Set rs1 = Nothing
+
+Dim Count As Integer
+Dim ItemExists As Boolean
+Count = 0
+For Each Item In RecruitCount
+
+    ItemExists = False
+    Debug.Print Item, RecruitCount(Item)
+    Count = Count + RecruitCount(Item)
+    
+    On Error Resume Next
+    rs2.MoveFirst
+    Do While Not rs2.EOF
+    
+        If rs2("Month Recruited") = Item Then
+            ItemExists = True
+            GoTo ExitLoop
+        End If
+        
+        rs2.MoveNext
+
+    Loop
+ExitLoop:
+    If ItemExists = True Then
+        rs2.Edit
+        rs2("Count") = rs2("Count").value + RecruitCount(Item)
+        rs2.Update
+    Else
+        rs2.AddNew
+        rs2("Date Deleted") = Date
+        rs2("Month Recruited") = Item
+        rs2("Count") = RecruitCount(Item)
+        rs2.Update
+    End If
+    
+Next Item
+
+rs2.Close
+Set rs2 = Nothing
+
+Debug.Print Count
+
+End Function
+
+Private Sub Command418_Click()
+
+Dim year As String
+Dim month As String
+
+Dim rs1 As DAO.Recordset
+Dim rs2 As DAO.Recordset
+Dim db As DAO.Database
+
+Dim strFilter As String
+Dim strSQL1 As String
+Dim strSQL2 As String
+Dim RecruitCount As New Scripting.Dictionary
+Dim RecruitKey As Variant
+Dim CountValue As Variant
+Dim RecruitDate As String
+
+strFilter = Me.Filter
+Debug.Print strFilter
+strSQL1 = "SELECT [Recruitment Date] FROM [Research VolunteersT] WHERE " & strFilter
+strSQL2 = "SELECT [Date Deleted], [Month Recruited], Count FROM [Delete Receipts]"
+
+Set db = CurrentDb
+Set rs1 = db.OpenRecordset(strSQL1)
+Set rs2 = db.OpenRecordset(strSQL2)
+
+RecruitCount.RemoveAll
+CountValue = 0
+rs1.MoveFirst
+Do While Not rs1.EOF
+
+    year = Format(rs1("Recruitment Date"), "yyyy")
+    
+'    Debug.Print year
+    
+    month = Format(rs1("Recruitment Date"), "mm")
+    
+'    Debug.Print month
+    
+    If month = "01" Then
+        month = "Jan"
+    ElseIf month = "02" Then
+        month = "Feb"
+    ElseIf month = "03" Then
+        month = "Mar"
+    ElseIf month = "04" Then
+        month = "Apr"
+    ElseIf month = "05" Then
+        month = "May"
+    ElseIf month = "06" Then
+        month = "Jun"
+    ElseIf month = "07" Then
+        month = "Jul"
+    ElseIf month = "08" Then
+        month = "Aug"
+    ElseIf month = "09" Then
+        month = "Sep"
+    ElseIf month = "10" Then
+        month = "Oct"
+    ElseIf month = "11" Then
+        month = "Nov"
+    ElseIf month = "12" Then
+        month = "Dec"
+    End If
+    
+    RecruitKey = month & " " & year
+    
+    If Not RecruitCount.Exists(RecruitKey) Then
+        RecruitCount.Add RecruitKey, 1
+    Else
+        CountValue = RecruitCount(RecruitKey)
+        RecruitCount(RecruitKey) = CountValue + 1
+    End If
+    
+    'Debug.Print CountValue
+'    For Each Item In RecruitCount
+'        Debug.Print Item
+'    Next Item
+    rs1.MoveNext
+Loop
+
+rs1.Close
+Set rs1 = Nothing
+
+Dim Count As Integer
+Dim ItemExists As Boolean
+Count = 0
+For Each Item In RecruitCount
+
+    ItemExists = False
+    Debug.Print Item, RecruitCount(Item)
+    Count = Count + RecruitCount(Item)
+    
+    On Error Resume Next
+    rs2.MoveFirst
+    Do While Not rs2.EOF
+    
+        If rs2("Month Recruited") = Item Then
+            ItemExists = True
+            GoTo ExitLoop
+        End If
+        
+        rs2.MoveNext
+
+    Loop
+ExitLoop:
+    If ItemExists = True Then
+        rs2.Edit
+        rs2("Count") = rs2("Count").value + RecruitCount(Item)
+        rs2.Update
+    Else
+        rs2.AddNew
+        rs2("Date Deleted") = Date
+        rs2("Month Recruited") = Item
+        rs2("Count") = RecruitCount(Item)
+        rs2.Update
+    End If
+    
+Next Item
+
+rs2.Close
+Set rs2 = Nothing
+
+Debug.Print Count
+
+End Sub

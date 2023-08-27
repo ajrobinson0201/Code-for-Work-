@@ -1,0 +1,187 @@
+Public s As Long
+Public origSheet As Worksheet
+Public myList As Variant
+Public nList As Variant
+
+Sub CreateSplitStackedBarChart()
+
+Dim q As Long
+Dim t As Long
+Dim p As Long
+Dim i As Long
+Dim usedRange As Range
+Dim usedColumnRange As Range
+Dim usedRowRange As Range
+Dim ws As Worksheet
+Dim chartSheet As Worksheet
+
+Set nList = New Collection
+Set myList = New Collection
+Set ws = ThisWorkbook.activeSheet
+Set origSheet = ws
+Set chartSheet = ThisWorkbook.Worksheets.Add
+Set usedRange = ws.usedRange
+Set usedColumnRange = usedRange.Columns
+Set usedRowRange = usedRange.Rows
+
+Application.ScreenUpdating = False
+
+
+s = ThisWorkbook.Worksheets.count - 4
+
+    
+On Error GoTo ErrorHandler:
+ErrorHandled:
+On Error Resume Next
+chartSheet.Name = "ChartSheet(" & s & ")"
+If Err <> 0 Then
+    MsgBox "The ChartSheet(" & s & ") sheet name has already been used. Please either delete the current ChartSheet(" & s & ") sheet or change the name so that the macro can run properly."
+    Exit Sub
+End If
+
+
+Debug.Print usedColumnRange.Address
+q = -1
+t = 1
+i = 1
+v = 1
+p = 1
+
+For Each column In usedColumnRange
+    If q = -1 Then
+        q = q + 1
+        GoTo NextColumn:
+    End If
+    
+    nList.Add column.Cells(1).value
+    q = q + 1
+    Debug.Print "q = " & q
+
+NextColumn:
+Next column
+
+For Each row In usedRowRange
+
+    If row.Cells(1) = ws.Range("A1") _
+    Or row.Cells(1) = "" Then
+        GoTo NextRow:
+    End If
+    
+
+    If Not row.Cells(1) = "" And row.Cells(2) = "" Then
+        
+        If q = 1 Then
+        
+            chartSheet.Columns(t + 1).Cells(1).value = row.Cells(1).value
+            t = t + 1
+        
+        Else
+        
+            For i = 1 To q
+                
+                chartSheet.Columns(t + 1).Cells(1).value = row.Cells(1).value & "(" & nList(i) & ")"
+                t = t + 1
+            
+            Next i
+        
+        End If
+    
+    Else
+        
+        For i = 1 To q
+        
+            chartSheet.Columns(1).Cells(p + 1).value = row.Cells(1).value
+
+            chartSheet.Columns(t - q + 1).Cells(p + 1).value = (row.Cells(i + 1).value / 100) '& vbCrLf & "n= " & ((row.Cells(2).value / 100) * origSheet.Columns(4).Cells(1).value)
+            
+            nValue = Round(((row.Cells(i + 1).value / 100) * origSheet.Columns(1).Cells(1).value), 0)
+            myList.Add nValue
+            
+            
+            t = t + 1
+            
+        Next i
+        p = p + 1
+        t = t - q
+        
+    End If
+
+NextRow:
+Next row
+
+Call CreateChart3
+
+Application.ScreenUpdating = True
+
+Exit Sub
+'
+ErrorHandler:
+
+s = s + 1
+
+Err.Clear
+'
+GoTo ErrorHandled:
+
+
+End Sub
+
+Private Sub CreateChart3()
+
+Dim ws1 As Worksheet
+Dim ch As Chart
+Dim usedRange As Range
+Dim series As series
+Dim actSheet As Worksheet
+Dim TargetChart As chartObject
+
+Set ws1 = ThisWorkbook.Worksheets("ChartSheet(" & s & ")")
+Set ch = ws1.Shapes.AddChart2(Style:=26).Chart
+Set usedRange = ws1.usedRange
+Set usedColumnRange = usedRange.Columns
+
+With ch
+
+    .ChartType = xlColumnStacked100
+    .SetElement msoElementDataLabelCenter
+    .PlotBy = xlRows
+    .SetElement msoElementLegendNone
+    .ApplyDataLabels
+    
+    For Each ChartGroup In ch.ChartGroups
+        ChartGroup.Gapwidth = 30
+    Next ChartGroup
+    
+    For Each series In ch.FullSeriesCollection
+        series.DataLabels.Select
+        Selection.ShowSeriesName = True
+        Selection.NumberFormat = "0.0%"
+        Selection.Separator = "" & Chr(13) & ""
+    Next series
+
+    If origSheet.Range("A1") <> "" Then
+        i = 1
+        For Each series In ch.SeriesCollection
+           For Each point In series.Points
+
+                point.DataLabel.Select
+                If point.DataLabel.Text <> "" Then
+                    Debug.Print Selection.Text
+                    Selection.Format.TextFrame2.TextRange.InsertAfter "(" & myList(i) & ")" ' & "" & Chr(13) & ""
+                    i = i + 1
+                End If
+
+            Next point
+        Next series
+    End If
+'
+End With
+
+ActiveChart.chartArea.Copy
+origSheet.Activate
+Range("F8").Select
+origSheet.Paste
+
+End Sub
+
+

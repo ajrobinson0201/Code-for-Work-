@@ -1,0 +1,939 @@
+Public CheckBy As Boolean
+Public SentList As String
+Public emailList As String
+Public nameList As String
+Public NewNumber As String
+
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' AppointmentF                                               '
+        ' Table Of Contents:                                         '
+        '                                                            '
+        ' Section 1: Formatting the Form Load                        '
+        ' Section 2: Updating the RC Phone                           '
+        ' Section 3: Formatting the SearchBar                        '
+        ' Section 4: Filtering the Appointments And                  '
+        '            Refreshing the Form                             '
+        ' Section 5: Sending Out Reminders and Updating Form         '
+        ' Section 6: Opening Schedule AppointmentF Form to Specific  '
+        '            Appointment When Clicking On Row                '
+        '                                                            '
+        '------------------------------------------------------------'
+        
+        
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 1: Formatting the Form Load                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub Form_Load()
+
+ Call RequerySeriesNum
+ 
+' Dim rs As DAO.Recordset
+' Dim db As DAO.Database
+'
+' Set db = CurrentDatabase
+' Set rs = db.OpenRecordset(SELECT Outcome,
+
+End Sub
+
+
+
+Private Sub RequerySeriesNum()
+
+    Dim SubjectList As New Scripting.Dictionary
+
+    Dim SubjectKey As String
+    Dim SeriesNum As String
+
+        On Error Resume Next
+
+        If (MacroError <> 0) Then
+            Beep
+            MsgBox MacroError.Description, vbOKOnly, ""
+        End If
+        Subject = txtStudyID.value & " " & txtStudy.value
+
+        Dim rs As DAO.Recordset
+        Dim Count As Integer
+
+        'Create a recordset of the filtered form
+        Set rs = Forms("AppointmentF").RecordsetClone
+
+        'Filter the AppointmentF continuous form by Appointment Start in ascending order
+        Forms![AppointmentF].OrderBy = "Appointment Start ASC"
+        Forms![AppointmentF].OrderByOn = True
+
+        Set rs = Forms("AppointmentF").RecordsetClone
+
+If Not CurrentProject.AllForms("Schedule AppointmentF").IsLoaded Then
+    Application.Echo False
+    rs.MoveFirst
+    
+    Do Until rs.EOF
+        SubjectKey = rs!Subject
+        
+        'Check if the Subject matches
+        If rs!Cancelled = "Cancelled" Then
+            'Update the Appointment Series Number
+            rs.Edit
+            rs.fields("Appt Series Number").value = 0
+            rs.Update
+
+        ElseIf IsNull(rs![Appointment Start]) Then
+            'Update the Appointment Series Number
+            rs.Edit
+            rs.fields("Appt Series Number").value = 0
+            rs.Update
+
+        ElseIf SubjectList.Exists(SubjectKey) Then
+            SeriesNum = SubjectList(SubjectKey) + 1
+            SubjectList(SubjectKey) = SeriesNum
+            rs.Edit
+            rs.fields("Appt Series Number").value = SeriesNum
+            rs.Update
+            
+        ElseIf Not SubjectList.Exists(SubjectKey) Then
+            SeriesNum = 1
+            SubjectList.Add SubjectKey, SeriesNum
+            rs.Edit
+            rs.fields("Appt Series Number").value = SeriesNum
+            rs.Update
+            
+        End If
+        'Move to the next record
+        rs.MoveNext
+    Loop
+
+rs.Close
+Set rs = Nothing
+
+'Remove the filter from the form
+Forms![AppointmentF].OrderBy = "Appointment Start ASC"
+Forms![AppointmentF].OrderByOn = False
+
+Application.Echo True
+
+End If
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 2: Updating the Phone Numbers                      '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub RCPhone_DblClick(Cancel As Integer)
+
+    If MsgBox("Would you like to update the RC Phone Number?", vbYesNo, "Update RC Phone Number") = vbYes Then
+        DoCmd.OpenForm "Phone NumbersF", acNormal, , "Phone ='RC Phone'"
+    Else:
+        Exit Sub
+    End If
+
+End Sub
+
+Private Sub TBICoEMainPhone_DblClick(Cancel As Integer)
+
+    If MsgBox("Would you like to update the TBICoE Main Phone Number?", vbYesNo, "Update TBICoE Main Phone Number") = vbYes Then
+        DoCmd.OpenForm "Phone NumbersF", acNormal, , "Phone ='TBICoE Main Phone'"
+    Else:
+        Exit Sub
+    End If
+
+End Sub
+
+
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 3: Formatting the SearchBar                        '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub SearchBar_AfterUpdate()
+
+Dim strFilter As String
+
+strFilter = "(([First Name] LIKE '*" & Me.SearchBar & "*') Or " & "([Last Name] LIKE '*" & Me.SearchBar & "*') Or " & "([E-mail] LIKE '*" & Me.SearchBar & "*'))"
+
+
+Me.Filter = strFilter
+Me.FilterOn = True
+
+End Sub
+
+Private Sub SearchBar_Click()
+
+    If Me.SearchBar.value = "Search..." Then
+        Me.SearchBar.value = ""
+    End If
+
+End Sub
+
+Private Sub SearchBar_LostFocus()
+
+If Len(Me.SearchBar) = 0 Then
+    Me.SearchBar.value = "Search..."
+End If
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 4: Filtering the Appointments And                  '
+        '            Refreshing the Form                             '
+        '------------------------------------------------------------'
+        
+
+Private Function AppointmentFilter()
+
+    Dim strDate As String
+    Dim strTime As String
+    Dim strStudyID As String
+    Dim strStudy As String
+    Dim strCancelled As String
+    
+
+    If Me.ComboStudyID <> "" Then
+        strStudyID = "[Study ID] LIKE '" & "*" & Me.ComboStudyID & "*" & "'"
+    End If
+    
+    If Me.ComboStudy <> "" Then
+        strStudy = "[Study] LIKE '" & "*" & Me.ComboStudy & "*" & "'"
+    End If
+    
+    If Me.ComboApptSDate <> "" Then
+        strDate = "DateValue([Appointment Start]) = #" & Me.ComboApptSDate & "#"
+    End If
+    
+    If Me.ComboApptStime <> "" Then
+        strTime = "TimeValue([Appointment Start]) = #" & Me.ComboApptStime & "#"
+    End If
+    
+    If Me.ComboLocation <> "" Then
+        strStudy = "[Location] LIKE '" & "*" & Me.ComboLocation & "*" & "'"
+    End If
+    
+    If Me.ComboFirstName <> "" Then
+        strFirstName = "[First Name] LIKE '" & "*" & Me.ComboFirstName & "*" & "'"
+    End If
+    
+    If Me.ComboLastName <> "" Then
+        strLastName = "[Last Name] LIKE '" & "*" & Me.ComboLastName & "*" & "'"
+    End If
+    
+'    If Me.ComboCancelled = "Cancelled" Then
+'        strCancelled = "[Cancelled] LIKE 'Cancelled'"
+''        strCancelled = strFilter
+'    End If
+    
+    If strStudyID <> "" Then
+        If strFilter = "" Then
+            strFilter = strStudyID
+        Else
+            strFilter = strFilter & " AND " & strStudyID
+        End If
+    End If
+    
+    If strStudy <> "" Then
+        If strFilter = "" Then
+            strFilter = strStudy
+        Else
+            strFilter = strFilter & " AND " & strStudy
+        End If
+    End If
+    
+    If strFirstName <> "" Then
+        If strFilter = "" Then
+            strFilter = strFirstName
+        Else
+            strFilter = strFilter & " AND " & strFirstName
+        End If
+    End If
+    
+    If strLastName <> "" Then
+        If strFilter = "" Then
+            strFilter = strLastName
+        Else
+            strFilter = strFilter & " AND " & strLastName
+        End If
+    End If
+    
+    If strDate <> "" Then
+        If strFilter = "" Then
+            strFilter = strDate
+        Else
+            strFilter = strFilter & " AND " & strDate
+        End If
+    End If
+    
+    If strTime <> "" Then
+        If strFilter = "" Then
+            strFilter = strTime
+        Else
+            strFilter = strFilter & " AND " & strTime
+        End If
+    End If
+    
+    If strLocation <> "" Then
+        If strFilter = "" Then
+            strFilter = strLocation
+        Else
+            strFilter = strFilter & " AND " & strLocation
+        End If
+    End If
+
+    If strCancelled <> "" Then
+        If strFilter = "" Then
+            strFilter = strCancelled
+        Else
+            strFilter = strFilter & " AND " & strCancelled
+        End If
+    End If
+    
+    If strFilter <> "" Then
+        strStudyIDRowSource = "SELECT DISTINCT [Study ID] FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strStudyIDRowSource = "SELECT DISTINCT [Study ID] FROM [AppointmentT]"
+    End If
+    
+    Me.ComboStudyID.RowSource = strStudyIDRowSource
+
+    
+    If strFilter <> "" Then
+        strStudyRowSource = "SELECT DISTINCT [Study] FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strStudyRowSource = "SELECT DISTINCT [Study] FROM [AppointmentT]"
+    End If
+    
+    Me.ComboStudy.RowSource = strStudyRowSource
+    'Me.ComboChooseStudy.RowSource = strStudyRowSource
+    
+    If strFilter <> "" Then
+        strFirstNameRowSource = "SELECT DISTINCT [First Name] FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strFirstNameRowSource = "SELECT DISTINCT [First Name] FROM [AppointmentT]"
+    End If
+    
+    Me.ComboFirstName.RowSource = strFirstNameRowSource
+    
+    If strFilter <> "" Then
+        strLastNameRowSource = "SELECT DISTINCT [Last Name] FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strLastNameRowSource = "SELECT DISTINCT [Last Name] FROM [AppointmentT]"
+    End If
+    
+    Me.ComboLastName.RowSource = strLastNameRowSource
+
+    If strFilter <> "" Then
+        strLocationRowSource = "SELECT DISTINCT [Location] FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strLocationRowSource = "SELECT DISTINCT [Location] FROM [AppointmentT]"
+    End If
+    
+    Me.ComboLocation.RowSource = strLocationRowSource
+
+    If strFilter <> "" Then
+        strDateRowSource = "SELECT DISTINCT Format([Appointment Start], 'Short Date') FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strDateRowSource = "SELECT DISTINCT Format([Appointment Start], 'Short Date') FROM [AppointmentT]"
+    End If
+    
+    Me.ComboApptSDate.RowSource = strDateRowSource
+    
+    If strFilter <> "" Then
+        strTimeRowSource = "SELECT DISTINCT Format([Appointment Start], 'Medium Time') FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strTimeRowSource = "SELECT DISTINCT Format([Appointment Start], 'Medium Time') FROM [AppointmentT]"
+    End If
+    
+    Me.ComboApptStime.RowSource = strTimeRowSource
+    
+    If strFilter <> "" Then
+        strCancelledRowSource = "SELECT DISTINCT [Cancelled] FROM [AppointmentT] WHERE " & strFilter
+    Else
+        strCancelledRowSource = "SELECT DISTINCT [Cancelled] FROM [AppointmentT]"
+    End If
+    
+'    Me.ComboCancelled.RowSource = strCancelledRowSource
+
+    Me.Filter = strFilter
+    FilterOn = True
+
+End Function
+
+Private Sub BtnRefresh_Click()
+ComboStudyID.value = ""
+ComboStudy.value = ""
+'ComboCancelled.value = ""
+ComboApptSDate.value = ""
+ComboApptStime.value = ""
+ComboLocation.value = ""
+ComboFirstName.value = ""
+ComboLastName.value = ""
+ComboChooseStudy.value = ""
+SearchBar.value = "Search..."
+
+FilterOn = False
+OrderByOn = False
+Toggle298.value = False
+Toggle299.value = False
+    
+Me.ComboStudyID.RowSource = "SELECT DISTINCT [Study ID] FROM [AppointmentT]"
+Me.ComboStudy.RowSource = "SELECT DISTINCT [Study] FROM [AppointmentT]"
+Me.ComboApptSDate.RowSource = "SELECT DISTINCT Format([Appointment Start], 'Short Date') FROM [AppointmentT]"
+Me.ComboApptStime.RowSource = "SELECT DISTINCT Format([Appointment Start], 'Medium Time') FROM [AppointmentT]"
+Me.ComboLocation.RowSource = "SELECT DISTINCT [Location] FROM [AppointmentT]"
+Me.ComboFirstName.RowSource = "SELECT DISTINCT [First Name] FROM [AppointmentT]"
+Me.ComboLastName.RowSource = "SELECT DISTINCT [Last Name] FROM [AppointmentT]"
+'Me.ComboCancelled.RowSource = "SELECT DISTINCT [Cancelled] FROM [AppointmentT]"
+'Me.ComboChooseStudy.RowSource = "SELECT DISTINCT [Study] FROM [AppointmentT]"
+
+End Sub
+
+Private Sub ComboStudyID_AfterUpdate()
+   
+Call AppointmentFilter
+    
+End Sub
+
+
+Private Sub ComboStudy_AfterUpdate()
+
+Call AppointmentFilter
+
+End Sub
+
+
+Private Sub ComboFirstName_AfterUpdate()
+
+Call AppointmentFilter
+
+End Sub
+
+Private Sub ComboLastName_AfterUpdate()
+
+
+Call AppointmentFilter
+
+End Sub
+
+Private Sub ComboApptSDate_Click()
+
+Call AppointmentFilter
+
+End Sub
+
+Private Sub ComboApptSTime_Click()
+
+Call AppointmentFilter
+
+End Sub
+
+Private Sub ComboLocation_AfterUpdate()
+
+Call AppointmentFilter
+
+End Sub
+
+
+
+'Private Sub ComboCancelled_AfterUpdate()
+'
+'Call AppointmentFilter
+'
+'End Sub
+
+Private Sub Toggle298_Click()
+
+If Me.Toggle298.value = True Then
+    Me.Filter = "[Cancelled] is Null Or [Cancelled] = ''"
+    Me.FilterOn = True
+Else
+    Me.Filter = ""
+End If
+
+End Sub
+
+Private Sub Toggle299_Click()
+
+If Toggle299.value = True Then
+    Me.OrderBy = "[Appointment Start] ASC"
+    OrderByOn = True
+    
+Else
+    Me.OrderBy = "[Appointment Start] DESC"
+    OrderByOn = True
+End If
+    
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 5: Sending Out Reminders and Updating Form         '
+        '                                                            '
+        '------------------------------------------------------------'
+
+
+Private Sub Ctl1WkReminder_Click()
+
+    RecordSetLoop "1 Week Reminder"
+    
+    Forms![AppointmentF].Requery
+End Sub
+
+
+Private Sub Ctl3DayReminder_Click()
+    
+    RecordSetLoop "3 Day Reminder"
+    
+    Forms![AppointmentF].Requery
+
+End Sub
+
+
+Private Sub Ctl1DayReminder_Click()
+
+    RecordSetLoop "1 Day Reminder"
+
+    Forms![AppointmentF].Requery
+
+End Sub
+
+Private Sub RecordSetLoop(ByVal reminderType)
+
+    Dim rs As DAO.Recordset
+    Dim db As DAO.Database
+    Dim apptDate As Date
+    
+    Set db = CurrentDb()
+    Set rs = db.OpenRecordset("AppointmentT")
+
+    nameList = ""
+    emailList = ""
+    SentList = ""
+
+    If IsNull(Me.ComboSigBlockUser.value) Then
+    
+        MsgBox "Please Select a User for Signature Block"
+        Exit Sub
+        
+    End If
+    
+    If IsNull(Me.ComboChooseStudy.value) Then
+
+        MsgBox "Please Select a Study for Reminder"
+        Exit Sub
+        
+    End If
+
+    rs.MoveFirst
+    
+    Do While Not rs.EOF
+    
+        If Not rs![Appt Series Number] = 0 Then
+        
+            If Not IsNull(rs![Appointment Start]) Then
+            
+                apptDate = rs![Appointment Start]
+                selectedStudy = Me.ComboChooseStudy.value
+                
+            End If
+
+            Select Case reminderType
+            
+                Case "1 Day Reminder"
+                    Criteria = DateDiff("h", Date, apptDate) <= 36 And _
+                                        apptDate > Date And _
+                                        IsNull(rs![1 Day Reminder]) And _
+                                        rs![Study] = selectedStudy
+                                        
+                
+                Case "3 Day Reminder"
+                    Criteria = DateDiff("d", Date, apptDate) <= 3 And _
+                                        DateDiff("h", Date, apptDate) > 36 And _
+                                        apptDate > Date And _
+                                        IsNull(rs![3 Day Reminder]) And _
+                                        rs![Study] = selectedStudy
+                                        
+                Case "1 Week Reminder"
+                    Criteria = DateDiff("d", Date, apptDate) <= 7 And _
+                                        DateDiff("d", Date, apptDate) > 3 And _
+                                        apptDate > Date And _
+                                        IsNull(rs![1 Week Reminder]) And _
+                                        rs![Study] = selectedStudy
+                                        
+            End Select
+            
+            If Criteria Then
+
+                    nameList = nameList & rs![First Name] & " " & rs![Last Name] & vbCrLf
+                    emailList = emailList & rs![E-mail] & ";"
+                    SentList = SentList & rs![Appointment ID] & ";"
+
+            End If
+
+        End If
+        
+        rs.MoveNext
+
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+
+    ReminderMessage reminderType
+
+End Sub
+
+
+Private Sub ReminderMessage(ByVal reminderType)
+
+    If Len(nameList) > 0 Then
+
+        If MsgBox("Contacts Ready for " & reminderType & vbCrLf & vbCrLf & _
+                  "Would you like to send the " & reminderType & " to the following people?" & vbCrLf & vbCrLf & _
+                  nameList, vbYesNo + vbQuestion, reminderType) = vbYes Then
+
+            SendReminder
+
+            If MsgBox("Enter Today's Date into " & reminderType & " Field" & vbCrLf & vbCrLf & _
+              "Would you like to mark that the " & reminderType & " has been sent the following people?" & vbCrLf & vbCrLf & _
+              nameList, vbYesNo + vbQuestion, "Populate Today's Date") = vbYes Then
+                
+            PopulateReminder reminderType
+
+            End If
+
+        End If
+
+    Else
+    
+        MsgBox "Participants Ready for " & reminderType & vbCrLf & vbCrLf & _
+                "There are no participants ready for the " & reminderType, , reminderType & " Prompt"
+
+    End If
+    
+End Sub
+Sub SendReminder()
+'
+    Dim db As DAO.Database
+    Dim rst As DAO.Recordset
+    Dim apptDate As Date
+    Dim apptName As String
+    Dim apptList As String
+    Dim emailMessage As String
+    Dim emailSubject As String
+    Dim emailTo As String
+    Dim emailReminder As Boolean
+    Dim olApp As Object
+    Dim olMail As Object
+    Dim olSig As String
+    Dim i As Integer
+    Dim Recipient As String
+    Dim OpenLocT As Boolean
+
+    Set db = CurrentDb()
+    Set rst = db.OpenRecordset("AppointmentT")
+
+    rst.MoveFirst
+    OpenLocT = False
+
+    Do While Not rst.EOF
+
+        If InStr(SentList, rst("Appointment ID")) > 0 Then
+
+
+                selectedUser = Me.ComboSigBlockUser.value
+                selectedLocation = rst("Location")
+                selectedStudy = rst("Study")
+
+                Dim rs3 As DAO.Recordset
+                Set rs3 = CurrentDb.OpenRecordset("SELECT * FROM [Users] WHERE [User] = '" & selectedUser & "'")
+
+                selectedSignature = rs3![SignatureBlock]
+                TBICoEPhoneNumber = Me.TBICoEMainPhone.value
+                RCPhoneNumber = Me.RCPhone.value
+
+                Set rs3 = Nothing
+                
+
+                Dim rs5 As DAO.Recordset
+                Set rs5 = CurrentDb.OpenRecordset("SELECT * FROM [StudyReminderInfoT] WHERE [Study] = '" & selectedStudy & "'")
+                
+                RecordCount = DCount("*", "StudyReminderInfoT", "Study = '" & selectedStudy & "'")
+                
+                If RecordCount > 0 Then
+
+                    If Len(rs5![Reminder Info]) > 1 And _
+                    Not rs5![Reminder Info] = "" And _
+                    Not rs5![Reminder Info] = " " And _
+                    Not rs5![Reminder Info] = "N/A" And _
+                    Not rs5![Reminder Info] = "n/a" And _
+                    Not rs5![Reminder Info] = "N/a" And _
+                    Not rs5![Reminder Info] = "None" And _
+                    Not rs5![Reminder Info] = "NONE" And _
+                    Not rs5![Reminder Info] = "If no Reminder Info, leave blank" And _
+                    Not rs5![Reminder Info] = "none" Then
+                        studyreminders = "Please Remember: " & "<br>" & rs5![Reminder Info] & "<br><br>"
+                    Else:
+                        studyreminders = ""
+                    End If
+                Else
+                    studyreminders = ""
+                End If
+
+
+                Dim rs4 As DAO.Recordset
+                Set rs4 = CurrentDb.OpenRecordset("SELECT * From [LocationsT] WHERE [Abbreviation] = '" & selectedLocation & "'")
+
+                If IsNull(DLookup("[Location]", "LocationsT", "[Abbreviation] = '" & selectedLocation & "'")) Then
+
+                    If MsgBox("No Study Location Found for Participant. Would you like to Add Study Location and then send a new Reminder?", _
+                    vbYesNo, "No Study Location Found") = vbYes Then
+                    
+                        MsgBox "Reminder will not be sent to " & rst("First Name") & " " & rst("Last Name")
+                        SentList = Replace(SentList, rst("Appointment ID") & ";", "")
+                        nameList = Replace(nameList, rst![First Name] & " " & rst![Last Name] & vbCrLf, "")
+                        OpenLocT = True
+                        GoTo NextLoop:
+                        
+                    Else
+                        
+                        apptDuration = DateDiff("h", rst("Appointment Start"), rst("Appointment End"))
+                        apptDate = rst("Appointment Start")
+                        apptName = rst("First Name") & " " & rst("Last Name")
+                        emailMessage = "Hello " & apptName & "," & "<br><br>" & "This is a friendly reminder of your appointment on " & Format(apptDate, "Long Date") & " at " & _
+                        Format(apptDate, "Long Time") & ". The appointment should last around " & apptDuration & " hours. Please try to arrive 15 minutes before your appointment." & _
+                        "<br><br>" & studyreminders & "If you have any questions or concerns, please call: " & "<br><br>" & "Research Coordinator: " & RCPhoneNumber & "<br>" & "TBICoE Main Office: " & TBICoEPhoneNumber & _
+                        "<br><br>" & "We look forward to seeing you!" & "<br><br>" & "Respectfully," & "<br>" & selectedSignature
+                        emailSubject = "Reminder: Appointment on " & Format(apptDate, "Long Date")
+                        emailTo = rst("E-mail")
+    
+                        Set rs4 = Nothing
+                        GoTo NoLocation:
+                        
+                    End If
+
+                End If
+                
+                messageLocation = rs4![Location]
+
+                If IsNull(DLookup("[Abbreviation]", "LocationsT", "[Abbreviation] = '" & selectedLocation & "'")) Then
+                
+                    messageAbbreviation = rs4![Location]
+                    
+                Else:
+                
+                    messageAbbreviation = rs4![Abbreviation]
+                    
+                End If
+
+                If IsNull(rs4![Address]) Then
+                
+                    MsgBox "No address given. Would you like to add an address?", vbYesNo, "No Address"
+                    GoTo NoLocation:
+                    
+                Else:
+                
+                    messageAddress = rs4![Address]
+                    
+                End If
+                
+                    Set rs4 = Nothing
+                    
+                
+                apptDuration = DateDiff("h", rst("Appointment Start"), rst("Appointment End"))
+                apptDate = rst("Appointment Start")
+                apptName = rst("First Name") & " " & rst("Last Name")
+                emailMessage = "Hello " & apptName & "," & "<br><br>" & "This is a friendly reminder of your appointment on " & Format(apptDate, "Long Date") & " at " & _
+                Format(apptDate, "Long Time") & ". The appointment should last around " & apptDuration & " hours. Please try to arrive at the " & messageLocation & " 15 minutes before your appointment. The address can be found below." & _
+                "<br><br>" & studyreminders & "If you have any questions or concerns, please call: " & "<br><br>" & "Research Coordinator: " & RCPhoneNumber & "<br>" & "TBICoE Main Office: " & TBICoEPhoneNumber & _
+                "<br><br>" & "We look forward to seeing you!" & "<br><br>" & messageAbbreviation & " Address: " & "<br>" & messageAddress & "<br><br>" & "Respectfully," & "<br>" & selectedSignature
+                emailSubject = "Reminder: Appointment on " & Format(apptDate, "Long Date")
+                emailTo = rst("E-mail")
+                
+NoLocation:
+
+                Set olApp = New Outlook.Application
+                Set olMail = olApp.CreateItem(0)
+
+                With olMail
+                
+                    .Subject = emailSubject
+                    .To = emailTo
+                    .htmlBody = emailMessage & vbCrLf & vbCrLf
+                    .Display
+                    
+                End With
+                
+            End If
+
+NextLoop:
+
+        rst.MoveNext
+        
+    Loop
+    
+    rst.Close
+    db.Close
+    
+    If OpenLocT = True Then
+        DoCmd.OpenForm "LocationsF", acNormal
+    End If
+End Sub
+
+
+Sub PopulateReminder(ByVal reminderType)
+    Dim rs As DAO.Recordset
+    Dim db As DAO.Database
+    Dim nameList As String
+    Dim emailList As String
+
+
+    Set db = CurrentDb()
+    Set rs = db.OpenRecordset("AppointmentT")
+
+    rs.MoveFirst
+    
+    Do While Not rs.EOF
+    
+        If Not rs![Appt Series Number] = 0 Then
+
+            If InStr(SentList, rs("Appointment ID")) > 0 Then
+
+                    rs.Edit
+                    rs.fields(reminderType).value = Date
+                    rs.Update
+                    
+            End If
+            
+        End If
+
+        rs.MoveNext
+
+    Loop
+
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+
+End Sub
+
+
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+'---------------------------------------------------------------------------------------------------------------------------------------------------------------------------'
+
+        '------------------------------------------------------------'
+        ' Section 6: Opening Schedule AppointmentF Form to Specific  '
+        '          Appointment When Clicking On Row                  '
+        '------------------------------------------------------------'
+        
+Private Sub AppointmentID_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Study_ID_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Study_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Appt_Series_Number_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub First_Name_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Last_Name_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Appointment_Start_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Appointment_End_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Location_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub txtCancelled_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub Notes_DblClick(Cancel As Integer)
+
+Call OpenScheduleAppointmentF
+
+End Sub
+
+Private Sub OpenScheduleAppointmentF()
+
+On Error Resume Next
+
+If Not IsNull(First_Name) Then
+    DoCmd.OpenForm "Schedule AppointmentF", acNormal, , "[Appointment ID]= " & AppointmentID
+End If
+
+End Sub

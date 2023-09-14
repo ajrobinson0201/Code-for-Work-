@@ -2,20 +2,10 @@
 Private Sub Command5_Click()
 
 'Generate 25 Random CAMP Prospects
-'MsgBox "Hi"
 Dim db As DAO.Database
 Dim rs As DAO.Recordset
 Dim strSQL As String
 Dim ParticipantList As String
-
-'Clear Existing Records
-
-'Application.Echo True
-
-'DoCmd.RunCommandcommand acCmdSelectAllRecords
-'DoCmd.RunCommand acCmdDeleteRecord
-'MsgBox "Deleting Records"
-'Generate Random names
 
 strSQL = "SELECT TOP 25 [Research VolunteersT].[Recruitment Date], [Research VolunteersT].Age, [Research VolunteersT].[First Name], [Research VolunteersT].[Last Name], " & _
          "[Research VolunteersT].[Telephone Number], [Research VolunteersT].[E-mail], [Research VolunteersT].[Study ID] " & _
@@ -48,18 +38,11 @@ Set rs = Nothing
 CurrentDb.CreateQueryDef "CAMP" & Date, strSQL
 DoCmd.OpenQuery "Camp" & Date, acViewNormal
 
-
-'Set qdf = CurrentDb.QueryDefs("CAMP" & Date)
-'qdf.SQL = strSQL
-'Set qdf = Nothing
-
 If MsgBox("Would you like to add these participant to the CAMP Study in the StudiesT Table?", vbYesNo, "CAMP Study Update") = vbYes Then
     
     UpdateStudiesT ParticipantList
 
 End If
-
-'Application.Echo True
 
 End Sub
 
@@ -76,51 +59,11 @@ Set participantCollection = New Collection
 
 participantArray = Split(ParticipantList, ",")
 
-'ReDim nameList(0 To UBound(participantArray) - LBound(participantArray))
-'
-'For Index = LBound(participantArray) To UBound(participantArray)
-'    Dim tempArray() As String
-'    Dim nameArray() As Variant
-'
-'    tempArray = Split(participantArray(Index), ",")
-'
-'    ReDim nameArray(0 To UBound(tempArray) - LBound(tempArray))
-'
-'    Dim i As Long
-'    For i = LBound(tempArray) To UBound(tempArray)
-'        nameArray(i) = tempArray(i)
-'    Next i
-'
-'    nameList(Index) = nameArray
-'Next Index
-'
-''Set participantCollection = New Collection
-'
 For Each participant In participantArray
     participantCollection.Add Trim(participant)
 Next participant
 
-'Set db = CurrentDb()
-'Set rs = db.OpenRecordset("StudiesT")
-
-'For Each participant In participantArray
-'
-'    Trim (participant)
-'
-'Next participant
-
 For Each participant In participantCollection
-
-'    Debug.Print participant
-'    Dim studyID As String
-'    Dim firstName As String
-'    Dim lastname As String
-'
-'    studyID = participant(0)
-'    firstName = participant(1)
-'    lastname = participant(2)
-'
-'    Trim (participant)
     
     Set db = CurrentDb()
     Set rs = db.OpenRecordset("StudiesT")
@@ -128,8 +71,6 @@ For Each participant In participantCollection
         rs.AddNew
         Debug.Print "Participant: " & participant
         rs![Study ID] = participant
-        'rs![First Name] = participant(1)
-        'rs![Last Name] = participant(2)
         rs![Study] = "CAMP"
         rs![Date Contacted] = Date
         rs![Outcome] = "Sent to ISC"
@@ -140,7 +81,5 @@ For Each participant In participantCollection
     End If
     
 Next participant
-'MsgBox "Would you like to add the following participants to the CAMP Study?" & vbNewLine & vbNewLine & ParticipantList
-
 
 End Function

@@ -82,7 +82,7 @@ Private Sub BtnOpenSOP_Click()
     Dim objWord As Object
     Dim strPathSOP As String
     
-    strPathSOP = "V:\DVBIC\1. RESEARCH\2. Control Recruitment\Control Recruitment\Recruitment SOP\Access Database SOP.docx"
+    strPathSOP = "V:\Access Database SOP.docx"
     
     Set objWord = CreateObject("Word.Application")
     
@@ -240,7 +240,7 @@ Private Sub ReminderMessage(ByVal reminderType)
 End Sub
 
 Sub SendReminder()
-'
+
     Dim db As DAO.Database
     Dim rst As DAO.Recordset
     Dim apptDate As Date
